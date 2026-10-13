@@ -8,7 +8,9 @@ Windows 本地运行，支持连续阅读、双页并排、离线英汉查词、
 
 ## 直接使用
 
-从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-MoCiPDF/releases) 下载 Windows 便携包，完整解压到英文目录，例如 `D:\tools\codex\XT-MoCiPDF`，然后双击 **XT墨词.exe**。无需安装 Python，日常使用无需联网。
+从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-MoCiPDF/releases) 下载 **Windows 安装包** `XT-MoCiPDF-1.5.1-Setup-x64.exe`，双击后按中文向导安装。安装包包含完整离线词典和 OCR 字库，并创建桌面与开始菜单入口，无需安装 Python 或另外下载词典。
+
+也可下载原有 Windows 便携包，完整解压到英文目录，例如 `D:\tools\codex\XT-MoCiPDF`，然后双击 **XT墨词.exe**。日常使用无需联网。
 
 请保留 `_internal` 和 `dictionary` 文件夹。软件启动后会在本机创建 `data` 和 `exports`；用户 PDF、标记、打开密码和导出记录不随源码或初始发布包上传。
 
@@ -45,6 +47,14 @@ python -m venv .venv
 .\src\build.ps1 -Python python
 .\tests\run_checks.ps1 -Python .\.venv\Scripts\python.exe
 ```
+
+使用 Inno Setup 6.7+ 可以把完整便携目录进一步打包成安装程序：
+
+```powershell
+.\installer\build-installer.ps1 -ISCC 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' -Payload '完整便携目录路径'
+```
+
+安装脚本只包含程序、字库、词典、源代码、许可和示例，不收录 `data`、`exports`、`.git` 或测试临时文件。安装升级不会覆盖个人文档数据；卸载后 `data` 和 `exports` 保留。更新旧便携版时选择原目录即可；安装向导要求英文目录以兼容离线 OCR。
 
 构建脚本输出完整便携目录。验证覆盖鼠标选词、双击、连续双页、OCR、离线词典、精读留白、分页、密码保护和取消导出等行为。测试使用生成的示例与独立临时词库，不读取个人 PDF。
 

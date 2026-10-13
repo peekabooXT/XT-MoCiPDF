@@ -2,8 +2,11 @@
 *.py text eol=lf
 *.md text eol=lf
 *.ps1 text eol=crlf
+*.iss text eol=crlf
+*.isl text eol=crlf
 *.pdf binary
 *.ico binary
 *.traineddata binary
 *.gz binary
 licenses/** -whitespace
+installer/*LICENSE.txt -whitespace

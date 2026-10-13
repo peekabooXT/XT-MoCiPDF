@@ -9,6 +9,8 @@ PyInstaller 6.22.3 (GPLv2 with bootloader exception)
 Tesseract English traineddata (Apache-2.0)
 ECDICT 英汉词典 (MIT License)，770,611 条，来源版本 bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b
 SQLite (public domain)，通过 Python 标准库 sqlite3 只读查询
+Windows 安装包由 Inno Setup 6.7.3 构建；简体中文语言文件来自 kira-96 的 MIT 许可翻译。
+安装器与翻译许可、固定来源记录保存在 installer/ 中。
 
 软件源码位于 src/。本程序及源码按 GNU AGPLv3 提供。
 第三方组件保持各自许可证，运行目录中保留其打包许可文件。

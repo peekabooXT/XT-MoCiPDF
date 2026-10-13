@@ -26,11 +26,11 @@ if (-not (Test-Path -LiteralPath (Join-Path $dictionarySource 'ecdict.sqlite')))
 }
 $dictionaryTarget = Join-Path $buildRoot 'dist\XT墨词\dictionary'
 New-Item -ItemType Directory -Path $dictionaryTarget -Force | Out-Null
-Get-ChildItem -LiteralPath $dictionarySource | ForEach-Object {
-    Copy-Item -LiteralPath $_.FullName -Destination $dictionaryTarget -Recurse -Force
+foreach ($file in @('ecdict.sqlite', 'source.json', 'LICENSE.txt')) {
+    Copy-Item -LiteralPath (Join-Path $dictionarySource $file) -Destination $dictionaryTarget -Force
 }
 $finalRoot = Join-Path $buildRoot 'dist\XT墨词'
-foreach ($folder in @('src', 'licenses', 'tessdata')) {
+foreach ($folder in @('src', 'licenses', 'tessdata', 'tests', 'installer')) {
     $destination = Join-Path $finalRoot $folder
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $packageRoot $folder) -File | ForEach-Object {
