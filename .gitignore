@@ -14,6 +14,8 @@ __pycache__/
 # dictionary/ecdict.sqlite.gz is tracked so source clones also work offline.
 _internal/
 *.exe
+unins*.dat
+unins*.msg
 *.zip
 dictionary/*.sqlite
 dictionary/*.sqlite-*
