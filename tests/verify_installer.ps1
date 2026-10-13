@@ -1,7 +1,7 @@
 param([string]$Setup,[string]$Payload)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-if (-not $Setup) { $Setup = Join-Path $root 'dist\installer\XT-MoCiPDF-1.7.0-Setup-x64.exe' }
+if (-not $Setup) { $Setup = Join-Path $root 'dist\installer\XT-MoCiPDF-1.8.0-Setup-x64.exe' }
 $installer = (Resolve-Path -LiteralPath $Setup).Path
 if (-not $Payload) { $Payload = $root }
 $Payload = (Resolve-Path -LiteralPath $Payload).Path
@@ -40,7 +40,7 @@ try {
     if ($shortcut.TargetPath -ne (Join-Path $installDir 'XT墨词.exe')) { throw 'Desktop shortcut does not launch installed app' }
     if (-not (Test-Path -LiteralPath $uninstallKey)) { throw 'Windows uninstall registration missing' }
     $installedEntry = Get-ItemProperty -LiteralPath $uninstallKey
-    if ($installedEntry.DisplayVersion -ne '1.7.0') { throw 'Installed version incorrect' }
+    if ($installedEntry.DisplayVersion -ne '1.8.0') { throw 'Installed version incorrect' }
     foreach ($file in @('XT墨词.exe','dictionary\ecdict.sqlite','_internal\tessdata\eng.traineddata')) {
         if ((Get-FileHash -LiteralPath (Join-Path $installDir $file)).Hash -ne (Get-FileHash -LiteralPath (Join-Path $Payload $file)).Hash) { throw ('Installed payload differs: '+$file) }
     }
@@ -50,7 +50,7 @@ try {
     $app = Start-Process -FilePath (Join-Path $installDir 'XT墨词.exe') -WindowStyle Hidden -PassThru
     if (-not $app.WaitForExit(25000)) { throw 'Installed app verification timed out' }
     $result = Get-Content -LiteralPath (Join-Path $env:MOCI_VERIFY_DIR 'result.json') -Raw | ConvertFrom-Json
-    if (-not $result.ok -or -not $result.offline_lookup -or -not $result.reading_background -or $result.vocabulary_export.terms -ne 2 -or $result.annotations -ne 5) { throw ('Installed app test failed: '+$result.error) }
+    if (-not $result.ok -or -not $result.offline_lookup -or -not $result.reading_background -or $result.vocabulary_export.terms -ne 2 -or $result.annotations -ne 5 -or -not $result.tool_shortcuts -or $result.visible_tools -ne 7) { throw ('Installed app test failed: '+$result.error) }
     Remove-Item Env:MOCI_VERIFY_DIR -ErrorAction SilentlyContinue
     CheckSavedData
     RunSetup 'upgrade-install'

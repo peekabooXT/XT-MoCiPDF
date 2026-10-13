@@ -3,7 +3,7 @@
   #define PayloadDir ".."
 #endif
 #ifndef BuildVersion
-  #define BuildVersion "1.7.0"
+  #define BuildVersion "1.8.0"
 #endif
 
 [Setup]

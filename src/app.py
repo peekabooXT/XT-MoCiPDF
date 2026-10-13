@@ -9,12 +9,12 @@ from pathlib import Path
 
 import pymupdf as fitz
 from PySide6.QtCore import Qt, Signal, QRectF, QPointF, QTimer, QThread, QLockFile, QEvent, QEventLoop
-from PySide6.QtGui import QColor, QPainter, QImage, QPixmap, QFont, QFontDatabase, QShortcut, QKeySequence, QIcon, QMouseEvent, QPen, QPainterPath
+from PySide6.QtGui import QColor, QPainter, QImage, QPixmap, QFont, QFontDatabase, QShortcut, QKeySequence, QIcon, QMouseEvent, QPen, QPainterPath, QKeyEvent
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QListWidget, QListWidgetItem, QLineEdit, QScrollArea, QSplitter,
     QSpinBox, QComboBox, QCheckBox, QFileDialog, QInputDialog, QMessageBox, QDialog,
     QPlainTextEdit, QAbstractItemView, QTextBrowser, QProgressDialog, QTableWidget,
-    QTableWidgetItem, QHeaderView)
+    QTableWidgetItem, QHeaderView, QTextEdit, QAbstractSpinBox, QKeySequenceEdit)
 
 from core import Library, clean_term, validate_term, export_body
 from dictionary import OfflineDictionary, render_lookup
@@ -22,6 +22,8 @@ from reading_export import export_reading_pdf, reading_export_process, page_numb
 from vocabulary_export import vocabulary_rows, export_vocabulary_pdf
 from annotations import (COLLECTED_COLOR, KINDS, ink_rgba, annotation_at,
                          export_annotated_pdf)
+from tool_settings import (AnnotationToolBar, ShortcutSettingsDialog, TOOLS, PORTABLE,
+                           load_shortcuts, validated_shortcuts)
 
 APP_ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]
 ASSETS = Path(getattr(sys, '_MEIPASS', APP_ROOT))
@@ -36,6 +38,8 @@ QPushButton { background: #ffffff; border: 1px solid #d5e0e3; border-radius: 7px
 QPushButton:hover { background: #e9f4f2; border-color: #9fc9c0; }
 QPushButton:pressed { background: #d4ebe5; }
 QPushButton:disabled { color: #a5b2b6; background: #f0f3f4; }
+QPushButton#annotationTool { padding: 7px 9px; }
+QPushButton#annotationTool:checked { color: white; background: #087f73; border-color: #087f73; font-weight: 600; }
 QPushButton#primary { background: #087f73; color: white; border: none; font-weight: 600; }
 QPushButton#primary:hover { background: #066a60; }
 QLineEdit, QSpinBox, QComboBox, QPlainTextEdit { background: white; border: 1px solid #d5e0e3; border-radius: 6px; padding: 7px; selection-background-color: #087f73; }
@@ -428,7 +432,9 @@ class PDFDocumentView(QWidget):
                 canvas.deleteLater()
 
     def schedule_visible(self):
-        if not self.busy:
+        # Coalesce resize/scroll bursts without postponing cache eviction on
+        # every event while the responsive toolbar is reflowing.
+        if not self.busy and not self.timer.isActive():
             self.timer.start(25)
 
     def update_marks(self):
@@ -821,6 +827,7 @@ class MainWindow(QMainWindow):
         self.zoom = 1.4
         self.search_cursor = None
         self.annotation_history = {}
+        self.tool_shortcuts = load_shortcuts(self.lib.state)
         self.dictionary = OfflineDictionary(APP_ROOT / 'dictionary' / 'ecdict.sqlite')
         self.dictionary_pending = ''
         self.dictionary_timer = QTimer(self)
@@ -841,6 +848,7 @@ class MainWindow(QMainWindow):
         header.addWidget(brand)
         header.addWidget(muted('XT · 精读与积累'))
         header.addStretch()
+        header.addWidget(button('设置', self.shortcut_settings))
         header.addWidget(button('使用帮助', self.help))
         header.addWidget(button('导入 PDF', self.import_dialog, True))
         outer.addLayout(header)
@@ -899,13 +907,10 @@ class MainWindow(QMainWindow):
         searchrow.addWidget(self.pdf_search)
         searchrow.addWidget(button('查找', self.search_pdf))
         cl.addLayout(searchrow)
-        annotation_row = QHBoxLayout()
-        self.annotation_tool = QComboBox()
-        for label, key in [('选词 / 阅读', 'select'), ('文字高亮', 'highlight'), ('文字下划线', 'underline'),
-                           ('自由画笔', 'ink'), ('矩形框', 'rect'), ('文字备注', 'note'), ('橡皮擦', 'erase')]:
-            self.annotation_tool.addItem(label, key)
+        self.annotation_tool = AnnotationToolBar(self.tool_shortcuts)
         self.annotation_tool.setToolTip('选词模式双击收录；批注模式拖动做记号，备注模式单击添加。Esc 返回选词。')
-        annotation_row.addWidget(self.annotation_tool)
+        cl.addWidget(self.annotation_tool)
+        annotation_row = QHBoxLayout()
         self.annotation_color = QComboBox()
         for label, color in [('金黄', '#f4c542'), ('珊瑚红', '#e87070'), ('湖蓝', '#4799de'),
                               ('紫色', '#a077d8'), ('绿色', '#46a886')]:
@@ -1029,6 +1034,7 @@ class MainWindow(QMainWindow):
         self.position_timer.timeout.connect(self.persist)
         self.refresh_library()
         self.refresh_annotation_controls()
+        QApplication.instance().installEventFilter(self)
         if self.lib.warning:
             QTimer.singleShot(0, lambda: QMessageBox.warning(self, '词库恢复', self.lib.warning))
         if reopen:
@@ -1036,6 +1042,48 @@ class MainWindow(QMainWindow):
             if last:
                 QTimer.singleShot(0, lambda: self.open_record(last))
         self.setAcceptDrops(True)
+
+    def eventFilter(self, watched, event):
+        if event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress):
+            if QApplication.activeWindow() is not self:
+                return False
+            focus = QApplication.focusWidget()
+            while focus is not None and focus is not self:
+                if isinstance(focus, (QLineEdit, QPlainTextEdit, QTextEdit)) and not focus.isReadOnly():
+                    return False
+                if isinstance(focus, (QAbstractSpinBox, QComboBox, QKeySequenceEdit)):
+                    return False
+                focus = focus.parentWidget()
+            # Keypad digits and the main number row share the default mappings.
+            modifiers = event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+            sequence = QKeySequence(event.key() | modifiers.value).toString(PORTABLE)
+            key = next((key for key, shortcut in self.tool_shortcuts.items() if shortcut and shortcut == sequence), None)
+            if key:
+                event.accept()
+                if event.type() == QEvent.Type.KeyPress and not event.isAutoRepeat():
+                    self.annotation_tool.setCurrentIndex(self.annotation_tool.findData(key))
+                    if self.record:
+                        self.canvas.setFocus()
+                return True
+        return super().eventFilter(watched, event)
+
+    def shortcut_settings(self):
+        ShortcutSettingsDialog(self).exec()
+
+    def save_tool_shortcuts(self, values):
+        values = validated_shortcuts(values)
+        previous = copy.deepcopy(self.lib.state.get('tool_shortcuts'))
+        self.lib.state['tool_shortcuts'] = values
+        if not self.persist():
+            if previous is None:
+                self.lib.state.pop('tool_shortcuts', None)
+            else:
+                self.lib.state['tool_shortcuts'] = previous
+            return False
+        self.tool_shortcuts = values
+        self.annotation_tool.set_shortcuts(values)
+        self.statusBar().showMessage('工具快捷键已保存，重新打开软件后仍有效。', 6000)
+        return True
 
     def change_annotation_tool(self):
         for canvas in self.reader.canvases.values():
@@ -1678,6 +1726,8 @@ class MainWindow(QMainWindow):
             '精读：右侧「导出精读 PDF」可生成留空行的打印副本。\n'
             '批注：顶部选择高亮、下划线、画笔、矩形框或文字备注，旁边可选颜色和线宽。\n'
             '批注管理可定位、编辑备注、删除；Ctrl+Z 撤销，Ctrl+Y 重做，Esc 返回选词。\n'
+            '工具按钮全部展开；默认 1–7 依次切换选词、高亮、下划线、画笔、框、备注、橡皮擦。\n'
+            '右上角「设置」可修改工具快捷键；输入框打字时不触发工具切换。\n'
             '右侧「导出收录与批注 PDF」会保存全部收录样式和论文批注。\n'
             '查词：选词后右侧显示离线中文释义，也可手动输入查词。\n'
             '阅读：默认单页连续滚动，顶部可切换「双页并排」。滚动时自动加载附近页面。\n'
@@ -1712,6 +1762,7 @@ class MainWindow(QMainWindow):
             self.doc = None
         self.dictionary_timer.stop()
         self.dictionary.close()
+        QApplication.instance().removeEventFilter(self)
         event.accept()
 
 
@@ -1738,6 +1789,28 @@ def main():
                 try:
                     sample = APP_ROOT / 'Example.pdf'
                     window.import_file(str(sample))
+                    window.activateWindow()
+                    QApplication.processEvents()
+                    for index, (_, key) in enumerate(TOOLS):
+                        window.canvas.setFocus()
+                        QApplication.sendEvent(window.canvas, QKeyEvent(QEvent.Type.KeyPress,
+                            Qt.Key.Key_1 + index, Qt.KeyboardModifier.NoModifier, str(index + 1)))
+                        assert window.canvas.tool == key
+                        assert window.annotation_tool.buttons[index].isVisible()
+                    window.annotation_tool.setCurrentIndex(0)
+                    window.pdf_search.setFocus()
+                    QApplication.sendEvent(window.pdf_search, QKeyEvent(QEvent.Type.KeyPress,
+                        Qt.Key.Key_2, Qt.KeyboardModifier.NoModifier, '2'))
+                    assert window.pdf_search.text() == '2' and window.canvas.tool == 'select'
+                    window.pdf_search.clear()
+                    keys = dict(window.tool_shortcuts, highlight='Ctrl+Shift+H')
+                    assert window.save_tool_shortcuts(keys)
+                    window.canvas.setFocus()
+                    QApplication.sendEvent(window.canvas, QKeyEvent(QEvent.Type.KeyPress,
+                        Qt.Key.Key_H, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier, 'H'))
+                    assert window.canvas.tool == 'highlight'
+                    assert window.save_tool_shortcuts({key: str(index + 1) for index, (_, key) in enumerate(TOOLS)})
+                    window.annotation_tool.setCurrentIndex(0)
                     idx = next(i for i, word in enumerate(window.canvas.words) if word[4] == 'discovery.')
                     window.canvas.selection = [idx]
                     window.term_edit.setText(window.canvas.selection_text())
@@ -1820,7 +1893,8 @@ def main():
                         'double_click_toggle': True, 'offline_lookup': True,
                         'dictionary_entries': window.dictionary.count,
                         'reading_export': reading_report, 'reading_background': True,
-                        'vocabulary_export': vocabulary_report, 'annotations': 5}), encoding='utf-8')
+                        'vocabulary_export': vocabulary_report, 'annotations': 5,
+                        'tool_shortcuts': True, 'visible_tools': len(TOOLS)}), encoding='utf-8')
                 except Exception as exc:
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': False, 'error': str(exc)}), encoding='utf-8')
                 window.close()
