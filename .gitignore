@@ -1,0 +1,21 @@
+# Personal reading data is always local.
+data/
+exports/
+work/
+.venv/
+__pycache__/
+*.py[cod]
+*.log
+*.tmp
+.env
+.env.*
+
+# Built runtime and generated offline database belong in release packages.
+_internal/
+*.exe
+*.zip
+dictionary/*.sqlite
+dictionary/*.sqlite-*
+*.spec
+build/
+dist/
