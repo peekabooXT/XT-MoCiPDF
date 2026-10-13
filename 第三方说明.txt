@@ -1,4 +1,4 @@
-XT 墨词 / XT-MoCiPDF 1.6.0
+XT 墨词 / XT-MoCiPDF 1.7.0
 用户定制的本地 Windows 64 位 PDF 词条收集工具。
 
 依赖：

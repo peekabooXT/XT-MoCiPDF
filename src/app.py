@@ -3,11 +3,13 @@ import sys
 import copy
 import multiprocessing
 import queue
+import uuid
+from datetime import datetime
 from pathlib import Path
 
 import pymupdf as fitz
 from PySide6.QtCore import Qt, Signal, QRectF, QPointF, QTimer, QThread, QLockFile, QEvent, QEventLoop
-from PySide6.QtGui import QColor, QPainter, QImage, QPixmap, QFont, QFontDatabase, QShortcut, QKeySequence, QIcon, QMouseEvent
+from PySide6.QtGui import QColor, QPainter, QImage, QPixmap, QFont, QFontDatabase, QShortcut, QKeySequence, QIcon, QMouseEvent, QPen, QPainterPath
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QListWidget, QListWidgetItem, QLineEdit, QScrollArea, QSplitter,
     QSpinBox, QComboBox, QCheckBox, QFileDialog, QInputDialog, QMessageBox, QDialog,
@@ -18,6 +20,8 @@ from core import Library, clean_term, validate_term, export_body
 from dictionary import OfflineDictionary, render_lookup
 from reading_export import export_reading_pdf, reading_export_process, page_numbers
 from vocabulary_export import vocabulary_rows, export_vocabulary_pdf
+from annotations import (COLLECTED_COLOR, KINDS, ink_rgba, annotation_at,
+                         export_annotated_pdf)
 
 APP_ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]
 ASSETS = Path(getattr(sys, '_MEIPASS', APP_ROOT))
@@ -75,6 +79,7 @@ def muted(text):
 class PDFCanvas(QWidget):
     selected = Signal(str)
     word_toggled = Signal(int)
+    annotation_requested = Signal(object)
 
     def __init__(self):
         super().__init__()
@@ -83,6 +88,10 @@ class PDFCanvas(QWidget):
         self.scale = 1.0
         self.rotation = fitz.Identity
         self.marks = []
+        self.annotations = []
+        self.tool, self.color, self.pen_width = 'select', '#f4c542', 2
+        self.draft = None
+        self.ink_cache = {}
         self.selection = []
         self.anchor = None
         self.dragging = False
@@ -96,6 +105,7 @@ class PDFCanvas(QWidget):
         pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
         self.image = QPixmap.fromImage(QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888).copy())
         self.words, self.marks = words, marks
+        self.ink_cache.clear()
         self.selection, self.anchor = [], None
         self.setFixedSize(pix.width, pix.height)
         self.update()
@@ -112,14 +122,95 @@ class PDFCanvas(QWidget):
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, f'第 {self.page_no + 1} 页 · 正在加载')
             return
         p.drawPixmap(0, 0, self.image)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(255, 206, 59, 100))
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # Reuse original glyph shapes instead of substituting a different font.
         for m in self.marks:
             for rect in m['rects']:
-                p.drawRoundedRect(self.screen_rect(rect), 2, 2)
+                target = self.screen_rect(rect)
+                key = tuple(rect)
+                if key not in self.ink_cache:
+                    bounds = target.toAlignedRect().intersected(self.image.rect())
+                    image = self.image.copy(bounds).toImage().convertToFormat(QImage.Format.Format_RGB888)
+                    if image.width() and image.height():
+                        rgba = ink_rgba(bytes(image.bits()), image.width(), image.height(), image.bytesPerLine())
+                        overlay = QImage(rgba, image.width(), image.height(), image.width() * 4,
+                                         QImage.Format.Format_RGBA8888_Premultiplied).copy()
+                        self.ink_cache[key] = (bounds, QPixmap.fromImage(overlay))
+                if key in self.ink_cache:
+                    bounds, overlay = self.ink_cache[key]
+                    for dx, dy in ((-.25, 0), (.25, 0), (0, -.15), (0, .15)):
+                        p.drawPixmap(QPointF(bounds.x() + dx * self.scale,
+                                            bounds.y() + dy * self.scale), overlay)
+                # Follow the PDF baseline, including on rotated pages.
+                r = fitz.Rect(rect)
+                p.setPen(QPen(QColor(COLLECTED_COLOR), max(1.5, 1.5 * self.scale)))
+                p.drawLine(self.screen_point(r.bl), self.screen_point(r.br))
+        for item in self.annotations + ([self.draft] if self.draft else []):
+            self.paint_annotation(p, item)
+        p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor(0, 135, 122, 85))
         for i in self.selection:
             p.drawRect(self.screen_rect(self.words[i][:4]))
+
+    def screen_point(self, point):
+        q = fitz.Point(point) * self.rotation
+        return QPointF(q.x * self.scale, q.y * self.scale)
+
+    def pdf_point(self, point):
+        q = fitz.Point(max(0, min(self.width(), point.x())) / self.scale,
+                       max(0, min(self.height(), point.y())) / self.scale) * ~self.rotation
+        return [q.x, q.y]
+
+    def set_tool(self, tool, color, width):
+        self.tool, self.color, self.pen_width = tool, color, width
+        self.cancel_draft()
+        self.setCursor(Qt.CursorShape.IBeamCursor if tool in ('select', 'highlight', 'underline')
+                       else Qt.CursorShape.CrossCursor)
+
+    def cancel_draft(self):
+        self.draft, self.dragging, self.anchor = None, False, None
+        self.selection = []
+        self.update()
+
+    def paint_annotation(self, p, item):
+        p.save()
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        pen = QPen(QColor(item['color']), max(1, item['width'] * self.scale))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        p.setPen(pen)
+        kind = item['type']
+        if kind == 'highlight':
+            p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Multiply)
+            color = QColor(item['color'])
+            color.setAlpha(90)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(color)
+            for rect in item['rects']:
+                p.drawRect(self.screen_rect(rect))
+        elif kind == 'underline':
+            for rect in item['rects']:
+                r = fitz.Rect(rect)
+                p.drawLine(self.screen_point(r.bl), self.screen_point(r.br))
+        elif kind == 'ink':
+            points = item['points']
+            if len(points) == 1:
+                p.drawPoint(self.screen_point(points[0]))
+            elif points:
+                path = QPainterPath(self.screen_point(points[0]))
+                for point in points[1:]:
+                    path.lineTo(self.screen_point(point))
+                p.drawPath(path)
+        elif kind == 'rect':
+            p.drawRect(self.screen_rect(item['rect']))
+        elif kind == 'note':
+            r = self.screen_rect(item['rect'])
+            p.setBrush(QColor(item['color']))
+            p.drawRoundedRect(r, 3, 3)
+            p.setPen(QColor('#233a41'))
+            p.setFont(QFont('Microsoft YaHei', max(7, int(9 * self.scale))))
+            p.drawText(r, Qt.AlignmentFlag.AlignCenter, '✎')
+        p.restore()
 
     def hit(self, point):
         for i, word in enumerate(self.words):
@@ -130,29 +221,79 @@ class PDFCanvas(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.setFocus()
+            point = self.pdf_point(event.position())
+            if self.tool == 'erase':
+                self.annotation_requested.emit({'erase': point})
+                return
+            if self.tool == 'note':
+                found = annotation_at([a for a in self.annotations if a['type'] == 'note'], point)
+                self.annotation_requested.emit({'edit': found['id']} if found else
+                    {'type': 'note', 'rect': [point[0], point[1], point[0] + 18, point[1] + 18],
+                     'color': self.color, 'width': self.pen_width})
+                return
+            if self.tool in ('ink', 'rect'):
+                self.dragging = True
+                self.draft = {'type': self.tool, 'color': self.color, 'width': self.pen_width,
+                              'points': [point], 'rect': [*point, *point]}
+                return
             self.anchor = self.hit(event.position())
             self.dragging = self.anchor is not None
             self.selection = [self.anchor] if self.dragging else []
-            self.selected.emit(self.selection_text())
+            if self.tool == 'select':
+                self.selected.emit(self.selection_text())
             self.update()
 
     def mouseMoveEvent(self, event):
         if not self.dragging:
+            found = annotation_at(self.annotations, self.pdf_point(event.position()))
+            self.setToolTip(found.get('text', '') if found else '')
+            return
+        if self.draft:
+            point = self.pdf_point(event.position())
+            if self.tool == 'ink':
+                last = self.draft['points'][-1]
+                if abs(last[0] - point[0]) + abs(last[1] - point[1]) >= .5:
+                    self.draft['points'].append(point)
+            elif self.tool == 'rect':
+                a = self.draft['points'][0]
+                self.draft['rect'] = [min(a[0], point[0]), min(a[1], point[1]),
+                                      max(a[0], point[0]), max(a[1], point[1])]
+            self.update()
             return
         end = self.hit(event.position())
         if end is not None:
             self.selection = list(range(min(self.anchor, end), max(self.anchor, end) + 1))
-            self.selected.emit(self.selection_text())
+            if self.tool == 'select':
+                self.selected.emit(self.selection_text())
             self.update()
 
     def mouseReleaseEvent(self, event):
+        if event.button() != Qt.MouseButton.LeftButton or not self.dragging:
+            return
         self.mouseMoveEvent(event)
         self.dragging = False
+        if self.draft:
+            item, self.draft = self.draft, None
+            if item['type'] != 'rect' or (fitz.Rect(item['rect']).width > 2 and fitz.Rect(item['rect']).height > 2):
+                self.annotation_requested.emit(item)
+        elif self.tool in ('highlight', 'underline') and self.selection:
+            self.annotation_requested.emit({'type': self.tool, 'color': self.color, 'width': self.pen_width,
+                'rects': [list(self.words[i][:4]) for i in self.selection], 'text': self.selection_text()})
+            self.selection = []
+        self.update()
 
     def mouseDoubleClickEvent(self, event):
         if event.button() != Qt.MouseButton.LeftButton:
             return
+        if self.tool != 'select':
+            event.accept()
+            return
         self.setFocus()
+        note = annotation_at([a for a in self.annotations if a['type'] == 'note'],
+                             self.pdf_point(event.position()))
+        if note:
+            self.annotation_requested.emit({'edit': note['id']})
+            return
         self.dragging = False
         self.anchor = None
         index = self.hit(event.position())
@@ -177,6 +318,7 @@ class PDFDocumentView(QWidget):
     selected = Signal(int, str)
     word_toggled = Signal(int, int)
     active_changed = Signal(int)
+    annotation_requested = Signal(int, object)
 
     def __init__(self, owner):
         super().__init__()
@@ -244,6 +386,9 @@ class PDFDocumentView(QWidget):
             canvas.setGeometry(self.boxes[number].toRect())
             canvas.selected.connect(lambda text, n=number: self.selected.emit(n, text))
             canvas.word_toggled.connect(lambda index, n=number: self.word_toggled.emit(n, index))
+            canvas.annotation_requested.connect(lambda item, n=number: self.annotation_requested.emit(n, item))
+            canvas.set_tool(self.owner.annotation_tool.currentData(), self.owner.annotation_color.currentData(),
+                            self.owner.annotation_width.value())
             shortcut = QShortcut(QKeySequence('Return'), canvas, self.owner.add_mark)
             shortcut.setContext(Qt.ShortcutContext.WidgetShortcut)
             canvas.show()
@@ -253,6 +398,7 @@ class PDFDocumentView(QWidget):
             page = self.owner.doc[number]
             marks = [m for m in self.owner.record['marks'] if m['page'] == number]
             canvas.set_page(page, self.owner.words_for_page(number), self.scale, marks)
+            canvas.annotations = [a for a in self.owner.record.get('annotations', []) if a['page'] == number]
         return canvas
 
     def refresh_visible(self):
@@ -288,6 +434,9 @@ class PDFDocumentView(QWidget):
     def update_marks(self):
         for n, canvas in self.canvases.items():
             canvas.marks = [m for m in self.owner.record['marks'] if m['page'] == n]
+            canvas.annotations = [a for a in self.owner.record.get('annotations', []) if a['page'] == n]
+            used = {tuple(r) for m in canvas.marks for r in m['rects']}
+            canvas.ink_cache = {k: v for k, v in canvas.ink_cache.items() if k in used}
             canvas.update()
 
     def ensure_rect(self, number, rect):
@@ -303,6 +452,66 @@ class PDFDocumentView(QWidget):
             if box.adjusted(0, -24, 0, 0).intersects(QRectF(event.rect())):
                 p.drawText(QRectF(box.x(), box.y() - 24, box.width(), 20),
                            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, f'第 {n + 1} 页')
+
+
+class AnnotationDialog(QDialog):
+    def __init__(self, owner):
+        super().__init__(owner)
+        self.owner = owner
+        self.setWindowTitle('管理论文批注')
+        self.resize(600, 460)
+        layout = QVBoxLayout(self)
+        layout.addWidget(muted('双击定位批注；文字备注可编辑。删除批注可以撤销。'))
+        self.items = QListWidget()
+        self.items.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        layout.addWidget(self.items)
+        row = QHBoxLayout()
+        row.addWidget(button('定位', self.locate))
+        row.addWidget(button('编辑备注', self.edit))
+        row.addWidget(button('删除所选', self.delete))
+        row.addWidget(button('关闭', self.accept))
+        layout.addLayout(row)
+        self.items.itemDoubleClicked.connect(lambda _: self.locate())
+        self.refresh()
+
+    def refresh(self):
+        self.items.clear()
+        for annotation in sorted(self.owner.record.get('annotations', []), key=lambda a: (a['page'], a['created'])):
+            text = annotation.get('text', '').replace('\n', ' ')[:120]
+            item = QListWidgetItem(f"第 {annotation['page'] + 1} 页 · {KINDS[annotation['type']]}  {text}")
+            item.setData(Qt.ItemDataRole.UserRole, annotation['id'])
+            item.setToolTip(annotation.get('text', ''))
+            self.items.addItem(item)
+
+    def current(self):
+        item = self.items.currentItem()
+        return next((a for a in self.owner.record.get('annotations', [])
+                     if item and a['id'] == item.data(Qt.ItemDataRole.UserRole)), None)
+
+    def locate(self):
+        item = self.current()
+        if item:
+            self.owner.go_page(item['page'])
+            if item['type'] == 'ink':
+                pt = item['points'][0]
+                rect = [pt[0], pt[1], pt[0] + 1, pt[1] + 1]
+            else:
+                rect = item.get('rect') or item['rects'][0]
+            self.owner.reader.ensure_rect(item['page'], self.owner.canvas.screen_rect(rect))
+
+    def edit(self):
+        item = self.current()
+        if item and item['type'] == 'note':
+            self.owner.annotation_action(item['page'], {'edit': item['id']})
+            self.refresh()
+        else:
+            QMessageBox.information(self, '编辑备注', '请选择一条文字备注。')
+
+    def delete(self):
+        ids = {i.data(Qt.ItemDataRole.UserRole) for i in self.items.selectedItems()}
+        if ids:
+            self.owner.commit_annotations([a for a in self.owner.record.get('annotations', []) if a['id'] not in ids])
+            self.refresh()
 
 
 class OCRWorker(QThread):
@@ -574,7 +783,7 @@ class ReadingExportDialog(QDialog):
         self.gap.addItems(['1 行空白', '2 行空白'])
         gap_row.addWidget(self.gap, 1)
         layout.addLayout(gap_row)
-        self.highlights = QCheckBox('加入已标记单词的黄色高亮')
+        self.highlights = QCheckBox('加入已收录单词的青绿加粗与下划线')
         layout.addWidget(self.highlights)
         layout.addWidget(muted('扫描页会离线识别行位置。复杂表格和图片区域会尽量保持完整；识别不到行时保留原页。'))
         actions = QHBoxLayout()
@@ -611,6 +820,7 @@ class MainWindow(QMainWindow):
         self.fit = True
         self.zoom = 1.4
         self.search_cursor = None
+        self.annotation_history = {}
         self.dictionary = OfflineDictionary(APP_ROOT / 'dictionary' / 'ecdict.sqlite')
         self.dictionary_pending = ''
         self.dictionary_timer = QTimer(self)
@@ -689,6 +899,33 @@ class MainWindow(QMainWindow):
         searchrow.addWidget(self.pdf_search)
         searchrow.addWidget(button('查找', self.search_pdf))
         cl.addLayout(searchrow)
+        annotation_row = QHBoxLayout()
+        self.annotation_tool = QComboBox()
+        for label, key in [('选词 / 阅读', 'select'), ('文字高亮', 'highlight'), ('文字下划线', 'underline'),
+                           ('自由画笔', 'ink'), ('矩形框', 'rect'), ('文字备注', 'note'), ('橡皮擦', 'erase')]:
+            self.annotation_tool.addItem(label, key)
+        self.annotation_tool.setToolTip('选词模式双击收录；批注模式拖动做记号，备注模式单击添加。Esc 返回选词。')
+        annotation_row.addWidget(self.annotation_tool)
+        self.annotation_color = QComboBox()
+        for label, color in [('金黄', '#f4c542'), ('珊瑚红', '#e87070'), ('湖蓝', '#4799de'),
+                              ('紫色', '#a077d8'), ('绿色', '#46a886')]:
+            self.annotation_color.addItem(label, color)
+            self.annotation_color.setItemData(self.annotation_color.count() - 1, QColor(color), Qt.ItemDataRole.DecorationRole)
+        annotation_row.addWidget(self.annotation_color)
+        self.annotation_width = QSpinBox()
+        self.annotation_width.setRange(1, 8)
+        self.annotation_width.setValue(2)
+        self.annotation_width.setSuffix(' pt')
+        self.annotation_width.setToolTip('画笔、框线、下划线的粗细，随 PDF 缩放')
+        annotation_row.addWidget(self.annotation_width)
+        self.undo_annotation_button = button('撤销', self.undo_annotation)
+        self.redo_annotation_button = button('重做', self.redo_annotation)
+        annotation_row.addWidget(self.undo_annotation_button)
+        annotation_row.addWidget(self.redo_annotation_button)
+        self.manage_annotation_button = button('批注 · 0', self.manage_annotations)
+        annotation_row.addWidget(self.manage_annotation_button)
+        annotation_row.addStretch()
+        cl.addLayout(annotation_row)
         self.scroll = QScrollArea()
         self.scroll.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
         self.reader = PDFDocumentView(self)
@@ -747,7 +984,7 @@ class MainWindow(QMainWindow):
         rl.addLayout(row)
         rl.addWidget(button('一键导出墨墨 TXT', self.quick_export, True))
         rl.addWidget(button('预览 / 复制 / 导出设置', self.export_dialog))
-        rl.addWidget(button('导出带高亮 PDF', self.export_pdf))
+        rl.addWidget(button('导出收录与批注 PDF', self.export_pdf))
         self.vocabulary_button = button('导出单词释义表 PDF', self.export_vocabulary)
         rl.addWidget(self.vocabulary_button)
         self.reading_button = button('导出精读 PDF（留空行）', self.export_reading)
@@ -764,6 +1001,10 @@ class MainWindow(QMainWindow):
         self.reader.selected.connect(self.page_selected)
         self.reader.word_toggled.connect(self.toggle_word)
         self.reader.active_changed.connect(self.set_active_page)
+        self.reader.annotation_requested.connect(self.annotation_action)
+        self.annotation_tool.currentIndexChanged.connect(self.change_annotation_tool)
+        self.annotation_color.currentIndexChanged.connect(self.change_annotation_tool)
+        self.annotation_width.valueChanged.connect(self.change_annotation_tool)
         self.scroll.verticalScrollBar().valueChanged.connect(self.reader.schedule_visible)
         self.scroll.horizontalScrollBar().valueChanged.connect(self.reader.schedule_visible)
         self.layout_box.currentIndexChanged.connect(self.change_layout)
@@ -777,6 +1018,9 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence('Ctrl+O'), self, self.import_dialog)
         QShortcut(QKeySequence('Ctrl+E'), self, self.quick_export)
         QShortcut(QKeySequence('Ctrl+F'), self, lambda: self.pdf_search.setFocus())
+        QShortcut(QKeySequence('Ctrl+Z'), self, self.undo_annotation)
+        QShortcut(QKeySequence('Ctrl+Y'), self, self.redo_annotation)
+        QShortcut(QKeySequence('Escape'), self, lambda: self.annotation_tool.setCurrentIndex(0))
         self.resize_timer = QTimer(self)
         self.resize_timer.setSingleShot(True)
         self.resize_timer.timeout.connect(self.render_page)
@@ -784,6 +1028,7 @@ class MainWindow(QMainWindow):
         self.position_timer.setSingleShot(True)
         self.position_timer.timeout.connect(self.persist)
         self.refresh_library()
+        self.refresh_annotation_controls()
         if self.lib.warning:
             QTimer.singleShot(0, lambda: QMessageBox.warning(self, '词库恢复', self.lib.warning))
         if reopen:
@@ -791,6 +1036,109 @@ class MainWindow(QMainWindow):
             if last:
                 QTimer.singleShot(0, lambda: self.open_record(last))
         self.setAcceptDrops(True)
+
+    def change_annotation_tool(self):
+        for canvas in self.reader.canvases.values():
+            canvas.set_tool(self.annotation_tool.currentData(), self.annotation_color.currentData(),
+                            self.annotation_width.value())
+        self.term_edit.clear()
+        self.add_button.setEnabled(self.annotation_tool.currentData() == 'select')
+        if self.annotation_tool.currentData() == 'erase':
+            self.statusBar().showMessage('单击删除普通批注；已收录词条在选词模式下双击取消。', 7000)
+
+    def refresh_annotation_controls(self):
+        history = self.annotation_history.get(self.record['id'], ([], [])) if self.record else ([], [])
+        self.undo_annotation_button.setEnabled(bool(history[0]))
+        self.redo_annotation_button.setEnabled(bool(history[1]))
+        self.manage_annotation_button.setText('批注 · ' + str(len(self.record.get('annotations', [])) if self.record else 0))
+        self.manage_annotation_button.setEnabled(self.record is not None)
+
+    def commit_annotations(self, items, history=True):
+        before = copy.deepcopy(self.record.get('annotations', []))
+        if before == items:
+            return False
+        self.record['annotations'] = copy.deepcopy(items)
+        if not self.persist():
+            self.record['annotations'] = before
+            return False
+        if history:
+            undo, redo = self.annotation_history.setdefault(self.record['id'], ([], []))
+            undo.append(before)
+            del undo[:-100]
+            redo.clear()
+        self.reader.update_marks()
+        self.refresh_annotation_controls()
+        return True
+
+    def annotation_action(self, page_no, action):
+        if not self.record:
+            return
+        self.set_active_page(page_no)
+        items = copy.deepcopy(self.record.get('annotations', []))
+        if 'erase' in action:
+            found = annotation_at([a for a in items if a['page'] == page_no], action['erase'],
+                                  max(3, 6 / self.reader.scale))
+            if found:
+                self.commit_annotations([a for a in items if a['id'] != found['id']])
+            return
+        if 'edit' in action:
+            item = next((a for a in items if a['id'] == action['edit']), None)
+            if not item or item['type'] != 'note':
+                return
+        else:
+            item = dict(action, page=page_no, id=uuid.uuid4().hex,
+                        created=datetime.now().isoformat(timespec='microseconds'))
+        if item['type'] == 'note':
+            text, ok = QInputDialog.getMultiLineText(self, '文字备注', '写下你的阅读笔记（双击备注可以编辑）',
+                                                    item.get('text', ''))
+            if not ok or not text.strip():
+                return
+            item['text'] = text.strip()
+            # Keep the note icon fully on-page, even when clicking the edge.
+            bounds = self.doc[page_no].cropbox
+            x = max(0, min(bounds.width - 18, item['rect'][0]))
+            y = max(0, min(bounds.height - 18, item['rect'][1]))
+            item['rect'] = [x, y, x + 18, y + 18]
+        if 'edit' not in action:
+            items.append(item)
+        self.commit_annotations(items)
+
+    def undo_annotation(self):
+        focus = QApplication.focusWidget()
+        if isinstance(focus, (QLineEdit, QPlainTextEdit)):
+            focus.undo()
+            return
+        if not self.record:
+            return
+        if self.canvas.draft:
+            self.canvas.cancel_draft()
+            return
+        undo, redo = self.annotation_history.setdefault(self.record['id'], ([], []))
+        if undo:
+            current = copy.deepcopy(self.record.get('annotations', []))
+            if self.commit_annotations(undo[-1], history=False):
+                undo.pop()
+                redo.append(current)
+                self.refresh_annotation_controls()
+
+    def redo_annotation(self):
+        focus = QApplication.focusWidget()
+        if isinstance(focus, (QLineEdit, QPlainTextEdit)):
+            focus.redo()
+            return
+        if not self.record:
+            return
+        undo, redo = self.annotation_history.setdefault(self.record['id'], ([], []))
+        if redo:
+            current = copy.deepcopy(self.record.get('annotations', []))
+            if self.commit_annotations(redo[-1], history=False):
+                redo.pop()
+                undo.append(current)
+                self.refresh_annotation_controls()
+
+    def manage_annotations(self):
+        if self.record:
+            AnnotationDialog(self).exec()
 
     def schedule_lookup(self, text):
         # Clearing the marking input must not erase the definition just read.
@@ -902,6 +1250,7 @@ class MainWindow(QMainWindow):
             self.render_page()
             self.go_page(self.page_no)
             self.refresh_marks()
+            self.refresh_annotation_controls()
             self.refresh_library()
             self.persist()
         except Exception as exc:
@@ -924,6 +1273,7 @@ class MainWindow(QMainWindow):
             if old_box:
                 new_box = self.reader.boxes[self.page_no]
                 self.scroll.verticalScrollBar().setValue(int(new_box.y() + fraction * new_box.height()))
+                self.scroll.horizontalScrollBar().setValue(max(0, int(new_box.x()) - 16))
             self.canvas = self.reader.page_canvas(self.page_no)
             self.update_page_info()
             self.reader.schedule_visible()
@@ -990,6 +1340,7 @@ class MainWindow(QMainWindow):
         box = self.reader.boxes[n]
         self.reader.busy = True
         self.scroll.verticalScrollBar().setValue(max(0, int(box.y()) - 24))
+        self.scroll.horizontalScrollBar().setValue(max(0, int(box.x()) - 16))
         self.reader.busy = False
         self.reader.schedule_visible()
 
@@ -1013,6 +1364,8 @@ class MainWindow(QMainWindow):
 
     def add_mark(self):
         if not self.record:
+            return
+        if self.annotation_tool.currentData() != 'select':
             return
         try:
             term = validate_term(self.term_edit.text())
@@ -1042,6 +1395,11 @@ class MainWindow(QMainWindow):
             item = QListWidgetItem(f"{mark['term']}\n第 {mark['page'] + 1} 页")
             item.setData(Qt.ItemDataRole.UserRole, mark['id'])
             item.setToolTip(mark['term'])
+            item.setForeground(QColor(COLLECTED_COLOR))
+            font = item.font()
+            font.setBold(True)
+            font.setUnderline(True)
+            item.setFont(font)
             self.mark_list.addItem(item)
 
     def get_mark(self, item):
@@ -1132,29 +1490,23 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, '无法准备释义表', str(exc))
 
     def write_highlight_pdf(self, path):
-        with fitz.open(self.lib.pdf_path(self.record)) as doc:
-            if doc.needs_pass:
-                doc.authenticate(self.password)
-            for mark in self.record['marks']:
-                if mark['rects']:
-                    page = doc[mark['page']]
-                    annot = page.add_highlight_annot([fitz.Rect(r).quad for r in mark['rects']])
-                    annot.set_info(content=mark['term'], title='XT MoCiPDF')
-                    annot.set_colors(stroke=(1, .8, .15))
-                    annot.update()
-            doc.save(path, garbage=4, deflate=True, encryption=fitz.PDF_ENCRYPT_KEEP)
+        if Path(path).resolve().is_relative_to(self.lib.root.resolve()):
+            raise ValueError('不能将导出文件写入文档数据目录，请另选位置。')
+        return export_annotated_pdf(self.lib.pdf_path(self.record), path, self.record['marks'],
+                                    self.record.get('annotations', []), self.password)
 
     def export_pdf(self):
-        if not self.has_marks():
+        if not self.record or not (self.record['marks'] or self.record.get('annotations')):
+            self.statusBar().showMessage('请先收录词条或添加论文批注。', 5000)
             return
         (APP_ROOT / 'exports').mkdir(exist_ok=True)
-        path, _ = QFileDialog.getSaveFileName(self, '导出带高亮的 PDF', str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_高亮.pdf')), 'PDF (*.pdf)')
+        path, _ = QFileDialog.getSaveFileName(self, '导出收录词条和论文批注', str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_批注.pdf')), 'PDF (*.pdf)')
         if path:
             try:
                 if Path(path).resolve() == self.lib.pdf_path(self.record).resolve():
                     raise ValueError('请选择另一个导出位置，不能覆盖词库中的 PDF。')
                 self.write_highlight_pdf(path)
-                self.statusBar().showMessage('已导出带高亮 PDF：' + path, 10000)
+                self.statusBar().showMessage('已导出收录与批注 PDF：' + path, 10000)
             except Exception as exc:
                 QMessageBox.critical(self, '导出失败', str(exc))
 
@@ -1317,13 +1669,16 @@ class MainWindow(QMainWindow):
             '1. 点击「导入 PDF」，也可以把 PDF 拖入窗口。\n'
             '2. 单击一个单词，或从词组第一个词拖到最后一个词。\n'
             '3. 核对下方输入框，按 Enter 或点击「标记选词」。\n'
-            '   快捷操作：双击单词直接标记，再次双击黄色标记位置即可取消。\n'
+            '   快捷操作：双击单词直接收录，再次双击青绿下划线词条即可取消。\n'
             '4. 点击「一键导出墨墨 TXT」，把 TXT 正文粘贴到墨墨云词本。\n\n'
             '扫描页：点击「识别当前页」，完成后同样选择词条。OCR 结果可能有误，请核对。\n'
             '词本：双击返回原页；编辑修正拼写；Ctrl 多选后删除。\n'
             '章节模式保留词组与大小写。// 原型模式由墨墨进行词形还原。\n'
             '快捷键：Ctrl+O 导入，Ctrl+E 导出，Ctrl+F 查找。\n\n'
             '精读：右侧「导出精读 PDF」可生成留空行的打印副本。\n'
+            '批注：顶部选择高亮、下划线、画笔、矩形框或文字备注，旁边可选颜色和线宽。\n'
+            '批注管理可定位、编辑备注、删除；Ctrl+Z 撤销，Ctrl+Y 重做，Esc 返回选词。\n'
+            '右侧「导出收录与批注 PDF」会保存全部收录样式和论文批注。\n'
             '查词：选词后右侧显示离线中文释义，也可手动输入查词。\n'
             '阅读：默认单页连续滚动，顶部可切换「双页并排」。滚动时自动加载附近页面。\n'
             '所有 PDF 和标记只在本机保存。备份整个 data 文件夹即可迁移。')
@@ -1412,6 +1767,29 @@ def main():
                     with fitz.open(Path(verify_dir, 'vocabulary.pdf')) as vocabulary:
                         text = ''.join(page.get_text() for page in vocabulary)
                         assert '母亲' in text and 'discovery' in text and '中文释义' in text
+                    # Exercise local annotation persistence, undo/redo and native
+                    # PDF appearances in the packaged runtime as well.
+                    for kind, geometry in [('highlight', {'rects': [list(window.canvas.words[idx][:4])]}),
+                                           ('underline', {'rects': [list(window.canvas.words[idx][:4])]}),
+                                           ('ink', {'points': [[52, 290], [100, 310], [145, 290]]}),
+                                           ('rect', {'rect': [52, 340, 240, 390]})]:
+                        window.annotation_action(1, dict(type=kind, color='#e87070', width=2, **geometry))
+                    window.commit_annotations(window.record['annotations'] + [{
+                        'id': uuid.uuid4().hex, 'created': datetime.now().isoformat(), 'page': 1,
+                        'type': 'note', 'color': '#f4c542', 'width': 2,
+                        'rect': [260, 340, 278, 358], 'text': '中文备注：核对方法与假设。'}])
+                    window.canvas.setFocus()
+                    window.undo_annotation()
+                    assert len(window.record['annotations']) == 4
+                    window.redo_annotation()
+                    assert len(window.record['annotations']) == 5
+                    window.write_highlight_pdf(Path(verify_dir, 'annotations.pdf'))
+                    with fitz.open(Path(verify_dir, 'annotations.pdf')) as annotated:
+                        page = annotated[1]
+                        kinds = {a.type[0] for a in page.annots()}
+                        assert {fitz.PDF_ANNOT_TEXT, fitz.PDF_ANNOT_INK, fitz.PDF_ANNOT_SQUARE,
+                                fitz.PDF_ANNOT_HIGHLIGHT, fitz.PDF_ANNOT_UNDERLINE} <= kinds
+                        assert any('中文备注' in a.info['content'] for a in page.annots())
                     reading_report = export_reading_pdf(window.lib.pdf_path(window.record),
                         Path(verify_dir, 'reading.pdf'), tessdata=TESSDATA,
                         marks=window.record['marks'])
@@ -1442,7 +1820,7 @@ def main():
                         'double_click_toggle': True, 'offline_lookup': True,
                         'dictionary_entries': window.dictionary.count,
                         'reading_export': reading_report, 'reading_background': True,
-                        'vocabulary_export': vocabulary_report}), encoding='utf-8')
+                        'vocabulary_export': vocabulary_report, 'annotations': 5}), encoding='utf-8')
                 except Exception as exc:
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': False, 'error': str(exc)}), encoding='utf-8')
                 window.close()

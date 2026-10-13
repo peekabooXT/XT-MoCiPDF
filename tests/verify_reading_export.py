@@ -63,8 +63,8 @@ def verify():
     marks = [{'page': 0, 'rects': [word[:4]]}]
     export_reading_pdf(source, qa / 'highlighted.pdf', pages=[0], marks=marks, tessdata=TESSDATA)
     with fitz.open(qa / 'highlighted.pdf') as highlighted:
-        assert any(drawing.get('fill') and drawing['fill'][0] > .9 and drawing['fill'][1] > .7
-                   and drawing['fill'][2] < .3 for p in highlighted for drawing in p.get_drawings())
+        assert any(drawing.get('color') and drawing['color'][0] < .1 and drawing['color'][1] > .4
+                   and drawing['color'][2] > .3 for p in highlighted for drawing in p.get_drawings())
     assert hashlib.sha256(source.read_bytes()).digest() == source_hash
     assert page_numbers('1-3,3,4', 4) == [0, 1, 2, 3]
     for text in ('0', '5', '3-2', '1,', 'a', '1-2-3'):

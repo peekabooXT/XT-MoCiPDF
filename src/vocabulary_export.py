@@ -138,7 +138,7 @@ def export_vocabulary_pdf(path, title, rows):
         writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
         writer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Point)
         writer.setTitle(title + ' - 单词释义表')
-        writer.setCreator('XT-MoCiPDF 1.6.0')
+        writer.setCreator('XT-MoCiPDF 1.7.0')
         painter = QPainter()
         if not painter.begin(writer):
             raise OSError('无法创建 PDF，请检查保存位置权限。')

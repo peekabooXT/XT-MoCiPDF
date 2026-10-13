@@ -37,7 +37,7 @@ foreach ($folder in @('src', 'licenses', 'tessdata', 'tests', 'installer')) {
         Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
     }
 }
-foreach ($file in @('README.md', 'LICENSE', '使用说明.md', '第三方说明.txt', 'Example.pdf', '精读导出示例.pdf', '单词释义表导出示例.pdf', 'icon.ico')) {
+foreach ($file in @('README.md', 'LICENSE', '使用说明.md', '第三方说明.txt', 'Example.pdf', '精读导出示例.pdf', '单词释义表导出示例.pdf', '论文批注导出示例.pdf', 'icon.ico')) {
     Copy-Item -LiteralPath (Join-Path $packageRoot $file) -Destination $finalRoot -Force
 }
 Write-Output "Build ready in $buildRoot\dist\XT墨词"

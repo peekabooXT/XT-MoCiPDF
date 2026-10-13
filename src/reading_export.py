@@ -12,6 +12,7 @@ from pathlib import Path
 from statistics import median
 
 import pymupdf as fitz
+from annotations import add_collected_style
 
 
 class ExportCancelled(Exception):
@@ -151,12 +152,7 @@ def export_reading_pdf(source, destination, *, password='', pages=None, blank_li
             pages = list(range(len(original))) if pages is None else sorted(set(pages))
             if not pages or any(n < 0 or n >= len(original) for n in pages):
                 raise ValueError('请选择有效的导出页码。')
-            for mark in marks:
-                if mark['page'] in pages and mark['rects']:
-                    marked_page = original[mark['page']]
-                    annot = marked_page.add_highlight_annot([fitz.Rect(r).quad for r in mark['rects']])
-                    annot.set_colors(stroke=(1, .8, .15))
-                    annot.update()
+            add_collected_style(original, [mark for mark in marks if mark['page'] in pages])
             # show_pdf_page excludes annotations; baking keeps their appearance.
             original.bake(annots=True, widgets=True)
             for done, number in enumerate(pages):
@@ -205,7 +201,7 @@ def export_reading_pdf(source, destination, *, password='', pages=None, blank_li
                 report['source_pages'] += 1
             check_cancel()
             output.set_metadata({'title': (original.metadata.get('title') or source.stem) + ' - Reading notes',
-                                 'creator': 'XT-MoCiPDF 1.6.0', 'subject': 'Extra space between text rows for handwritten notes'})
+                                 'creator': 'XT-MoCiPDF 1.7.0', 'subject': 'Extra space between text rows for handwritten notes'})
             handle, temporary = tempfile.mkstemp(prefix='.moci-reading-', suffix='.pdf', dir=destination.parent)
             os.close(handle)
             kwargs = dict(garbage=4, deflate=True)

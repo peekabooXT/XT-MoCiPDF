@@ -3,7 +3,7 @@
   #define PayloadDir ".."
 #endif
 #ifndef BuildVersion
-  #define BuildVersion "1.6.0"
+  #define BuildVersion "1.7.0"
 #endif
 
 [Setup]
@@ -69,6 +69,7 @@ Source: "{#PayloadDir}\验证记录.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\Example.pdf"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\精读导出示例.pdf"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PayloadDir}\单词释义表导出示例.pdf"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PayloadDir}\论文批注导出示例.pdf"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\XT 墨词"; Filename: "{app}\XT墨词.exe"; WorkingDir: "{app}"; IconFilename: "{app}\icon.ico"
