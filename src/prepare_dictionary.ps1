@@ -4,6 +4,12 @@ $packageRoot = Split-Path -Parent $PSScriptRoot
 $dictionaryRoot = Join-Path $packageRoot 'dictionary'
 $databasePath = Join-Path $dictionaryRoot 'ecdict.sqlite'
 if (Test-Path -LiteralPath $databasePath) { Write-Output 'Offline dictionary already available'; exit 0 }
+if (Test-Path -LiteralPath (Join-Path $dictionaryRoot 'ecdict.sqlite.gz')) {
+    & $Python (Join-Path $PSScriptRoot 'unpack_dictionary.py')
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot unpack bundled offline dictionary' }
+    Write-Output 'Bundled offline dictionary unpacked; no download required'
+    exit 0
+}
 $sourceInfo = Get-Content -LiteralPath (Join-Path $dictionaryRoot 'source.json') -Raw | ConvertFrom-Json
 $sourceRoot = Join-Path $packageRoot 'work\dictionary-source'
 New-Item -ItemType Directory -Path $sourceRoot -Force | Out-Null

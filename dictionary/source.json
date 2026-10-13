@@ -7,5 +7,7 @@
   "csv_sha256": "1a6947e04785db63613a92e14903cdae7954f7e84860b10e68e5c7cbb3f9c3cf",
   "license": "MIT",
   "format_version": 1,
-  "forms_source": "ECDICT exchange field"
+  "forms_source": "ECDICT exchange field",
+  "sqlite_sha256": "a3905ee6e73e5bcb6403d510abe0c3c6412deabb32459bf50aa0ccf6d532cf26",
+  "sqlite_gzip_sha256": "5e79aed77d41ed829d921124f97dd70b26ad33f735d1f2b7b058bc1ca489b677"
 }

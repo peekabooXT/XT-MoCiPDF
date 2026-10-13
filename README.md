@@ -26,7 +26,7 @@ Windows 本地运行，支持连续阅读、双页并排、离线英汉查词、
 
 ## 从源码运行
 
-使用独立 CPython 3.12+，建议避免 Anaconda 的 Qt DLL 冲突。源码运行需要先下载一次公开词典源数据，此后查词离线。
+使用独立 CPython 3.12+，建议避免 Anaconda 的 Qt DLL 冲突。仓库内已包含压缩的离线词典；首次准备时会自动在本地解包，不需要下载词典。首次安装 Python 依赖通常仍需要联网。
 
 ```powershell
 python -m venv .venv
@@ -35,7 +35,9 @@ python -m venv .venv
 .\.venv\Scripts\python.exe .\src\app.py
 ```
 
-词典构建会校验固定版本 CSV 的 SHA-256。源数据和生成的 SQLite 数据库不进入 Git 历史；完整离线数据库随 Windows 发布包提供。英文 OCR 字库在 `tessdata` 中。
+`dictionary/ecdict.sqlite.gz` 包含完整的 770,611 条 ECDICT 词条。准备脚本优先离线解包，并校验压缩文件与解包数据库的 SHA-256；解包后的 `ecdict.sqlite` 不重复写入 Git 历史。Windows 发布包直接包含已解包数据库。英文 OCR 字库在 `tessdata` 中。
+
+如果两份数据库都缺失，准备脚本才会尝试下载固定版本的公开 ECDICT CSV 并校验其 SHA-256 后重建。MIT 许可和数据来源随词典一同保存。
 
 ## 构建与验证
 

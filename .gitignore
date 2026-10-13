@@ -10,7 +10,8 @@ __pycache__/
 .env
 .env.*
 
-# Built runtime and generated offline database belong in release packages.
+# Runtime and unpacked database belong in release packages; compressed
+# dictionary/ecdict.sqlite.gz is tracked so source clones also work offline.
 _internal/
 *.exe
 *.zip
