@@ -8,7 +8,7 @@ Windows 本地运行，支持连续阅读、双页并排、离线英汉查词、
 
 ## 直接使用
 
-从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-MoCiPDF/releases) 下载 **Windows 安装包** `XT-MoCiPDF-1.5.1-Setup-x64.exe`，双击后按中文向导安装。安装包包含完整离线词典和 OCR 字库，并创建桌面与开始菜单入口，无需安装 Python 或另外下载词典。
+从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-MoCiPDF/releases) 下载 **Windows 安装包** `XT-MoCiPDF-1.6.0-Setup-x64.exe`，双击后按中文向导安装。安装包包含完整离线词典和 OCR 字库，并创建桌面与开始菜单入口，无需安装 Python 或另外下载词典。
 
 也可下载原有 Windows 便携包，完整解压到英文目录，例如 `D:\tools\codex\XT-MoCiPDF`，然后双击 **XT墨词.exe**。日常使用无需联网。
 
@@ -23,6 +23,7 @@ Windows 本地运行，支持连续阅读、双页并排、离线英汉查词、
 - 单击选词、拖选词组；双击直接标记，再次双击取消。
 - 内置约 77 万条 ECDICT 词条，显示中文释义、音标和词形参考；词组未收录时逐词解释。
 - 导出 UTF-8 墨墨云词本正文，完整保留词组和大小写；可生成带高亮的 PDF。
+- 导出两列单词释义 PDF：左列英文、右列中文，可预览修改释义、合并重复或只导出选中词条，支持完整长释义分页打印。
 - 精读导出支持每行增加 1 / 2 行留白、全部 / 当前 / 指定页码、A4 自动分页，以及可选标记高亮。
 - 离线英文 OCR、加密 PDF、自动保存与本机备份。
 

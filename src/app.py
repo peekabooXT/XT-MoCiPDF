@@ -11,11 +11,13 @@ from PySide6.QtGui import QColor, QPainter, QImage, QPixmap, QFont, QFontDatabas
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QListWidget, QListWidgetItem, QLineEdit, QScrollArea, QSplitter,
     QSpinBox, QComboBox, QCheckBox, QFileDialog, QInputDialog, QMessageBox, QDialog,
-    QPlainTextEdit, QAbstractItemView, QTextBrowser, QProgressDialog)
+    QPlainTextEdit, QAbstractItemView, QTextBrowser, QProgressDialog, QTableWidget,
+    QTableWidgetItem, QHeaderView)
 
 from core import Library, clean_term, validate_term, export_body
 from dictionary import OfflineDictionary, render_lookup
 from reading_export import export_reading_pdf, reading_export_process, page_numbers
+from vocabulary_export import vocabulary_rows, export_vocabulary_pdf
 
 APP_ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]
 ASSETS = Path(getattr(sys, '_MEIPASS', APP_ROOT))
@@ -389,6 +391,121 @@ def safe_name(title):
     return ''.join('_' if c in '<>:"/\\|?*' else c for c in title).strip(' .')[:120] or '词本'
 
 
+class VocabularyExportDialog(QDialog):
+    def __init__(self, owner):
+        super().__init__(owner)
+        self.owner = owner
+        self.record = copy.deepcopy(owner.record)
+        self.selected_ids = {item.data(Qt.ItemDataRole.UserRole) for item in owner.mark_list.selectedItems()}
+        self.edits = {}
+        self.setWindowTitle('导出单词释义表 PDF')
+        self.resize(860, 670)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel('左列英文词条，右列中文释义 · A4 打印表格'))
+        layout.addWidget(muted('释义来自离线词典；双击右列或点击「编辑释义」可调整本次导出的内容。'))
+        options = QHBoxLayout()
+        self.scope = QComboBox()
+        self.scope.addItem('当前 PDF 全部标记', None)
+        if self.selected_ids:
+            self.scope.addItem(f'仅导出选中的 {len(self.selected_ids)} 条标记', 'selected')
+        options.addWidget(self.scope, 1)
+        self.dedupe = QCheckBox('合并相同拼写的词条')
+        self.dedupe.setChecked(True)
+        options.addWidget(self.dedupe)
+        layout.addLayout(options)
+        self.table = QTableWidget(0, 2)
+        self.table.setHorizontalHeaderLabels(['英文单词 / 词组', '中文释义'])
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setWordWrap(True)
+        self.table.setAlternatingRowColors(True)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.setColumnWidth(0, 240)
+        layout.addWidget(self.table, 1)
+        self.count = muted('')
+        layout.addWidget(self.count)
+        layout.addWidget(muted('保留词组和大小写；未收录词组会明确标注逐词释义。这里的修改不会改变 PDF 标记或词典。'))
+        row = QHBoxLayout()
+        row.addWidget(button('编辑释义', self.edit_meaning))
+        row.addWidget(button('恢复词典释义', self.restore_meaning))
+        row.addStretch()
+        row.addWidget(button('关闭', self.reject))
+        row.addWidget(button('导出 PDF', self.save, True))
+        layout.addLayout(row)
+        self.scope.currentIndexChanged.connect(self.refresh)
+        self.dedupe.toggled.connect(self.refresh)
+        self.table.itemDoubleClicked.connect(lambda item: self.edit_meaning() if item.column() == 1 else None)
+        self.refresh()
+
+    def refresh(self):
+        ids = self.selected_ids if self.scope.currentData() == 'selected' else None
+        self.rows = vocabulary_rows(self.record, self.owner.dictionary, self.dedupe.isChecked(), ids)
+        self.table.setRowCount(len(self.rows))
+        for row, (term, meaning) in enumerate(self.rows):
+            meaning = self.edits.get(term, meaning)
+            for column, text in enumerate((term, meaning)):
+                item = QTableWidgetItem(text)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.table.setItem(row, column, item)
+        self.table.resizeRowsToContents()
+        # Long definitions can be edited in full without occupying the entire
+        # preview; PDF pagination preserves their complete text.
+        for row in range(self.table.rowCount()):
+            self.table.setRowHeight(row, min(160, max(44, self.table.rowHeight(row))))
+        self.count.setText(f'{len(self.rows)} 个词条 · 释义自动换行，表头在每页重复')
+
+    def edit_meaning(self):
+        row = self.table.currentRow()
+        if row < 0:
+            self.count.setText('请先选择一个词条。')
+            return
+        term = self.table.item(row, 0).text()
+        meaning, ok = QInputDialog.getMultiLineText(self, '编辑本次导出的释义', term,
+                                                  self.table.item(row, 1).text())
+        if ok:
+            self.edits[term] = meaning
+            self.refresh()
+            self.table.selectRow(row)
+
+    def restore_meaning(self):
+        row = self.table.currentRow()
+        if row >= 0:
+            self.edits.pop(self.table.item(row, 0).text(), None)
+            self.refresh()
+            self.table.selectRow(row)
+
+    def export_rows(self):
+        return [(self.table.item(row, 0).text(), self.table.item(row, 1).text())
+                for row in range(self.table.rowCount())]
+
+    def save(self):
+        (APP_ROOT / 'exports').mkdir(exist_ok=True)
+        path, _ = QFileDialog.getSaveFileName(self, '保存单词释义表 PDF',
+            str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_单词释义表.pdf')), 'PDF (*.pdf)')
+        if not path:
+            return
+        try:
+            if Path(path).resolve().is_relative_to(self.owner.lib.root.resolve()):
+                raise ValueError('请选择文档数据目录以外的位置，不能覆盖原 PDF。')
+            # The source PDF is stored as a local copy; protect identical
+            # original files selected outside the data folder as well.
+            if Path(path).exists():
+                import hashlib
+                with open(path, 'rb') as stream:
+                    if hashlib.file_digest(stream, 'sha256').hexdigest() == self.record['id']:
+                        raise ValueError('该文件是原 PDF，请使用新的文件名保存。')
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:
+                result = export_vocabulary_pdf(path, self.record['title'], self.export_rows())
+            finally:
+                QApplication.restoreOverrideCursor()
+            self.count.setText(f"已保存：{result['terms']} 个词条，{result['pages']} 页 · {path}")
+            self.owner.statusBar().showMessage('已导出单词释义表：' + path, 12000)
+        except Exception as exc:
+            QMessageBox.critical(self, '表格导出失败', str(exc))
+
+
 class ReadingExportWorker(QThread):
     progress = Signal(int, int, str)
     ready = Signal(object, str)
@@ -631,6 +748,8 @@ class MainWindow(QMainWindow):
         rl.addWidget(button('一键导出墨墨 TXT', self.quick_export, True))
         rl.addWidget(button('预览 / 复制 / 导出设置', self.export_dialog))
         rl.addWidget(button('导出带高亮 PDF', self.export_pdf))
+        self.vocabulary_button = button('导出单词释义表 PDF', self.export_vocabulary)
+        rl.addWidget(self.vocabulary_button)
         self.reading_button = button('导出精读 PDF（留空行）', self.export_reading)
         rl.addWidget(self.reading_button)
         rl.addWidget(muted('双击词条返回所在页。\n导出默认合并同样拼写的词条。'))
@@ -1001,6 +1120,17 @@ class MainWindow(QMainWindow):
             (APP_ROOT / 'exports').mkdir(exist_ok=True)
             ExportDialog(self, self.record).exec()
 
+    def export_vocabulary(self):
+        if not self.has_marks():
+            return
+        if not self.dictionary.ready:
+            QMessageBox.warning(self, '离线词典无法读取', self.dictionary.error)
+            return
+        try:
+            VocabularyExportDialog(self).exec()
+        except Exception as exc:
+            QMessageBox.critical(self, '无法准备释义表', str(exc))
+
     def write_highlight_pdf(self, path):
         with fitz.open(self.lib.pdf_path(self.record)) as doc:
             if doc.needs_pass:
@@ -1277,6 +1407,11 @@ def main():
                     assert window.record['marks'][-1]['page'] == 1
                     assert window.reader.boxes[0].y() == window.reader.boxes[1].y()
                     assert '母亲' in window.dictionary_view.toPlainText()
+                    vocabulary_report = export_vocabulary_pdf(Path(verify_dir, 'vocabulary.pdf'),
+                        window.record['title'], vocabulary_rows(window.record, window.dictionary))
+                    with fitz.open(Path(verify_dir, 'vocabulary.pdf')) as vocabulary:
+                        text = ''.join(page.get_text() for page in vocabulary)
+                        assert '母亲' in text and 'discovery' in text and '中文释义' in text
                     reading_report = export_reading_pdf(window.lib.pdf_path(window.record),
                         Path(verify_dir, 'reading.pdf'), tessdata=TESSDATA,
                         marks=window.record['marks'])
@@ -1306,7 +1441,8 @@ def main():
                         'ocr_words': ocr_count, 'columns': window.reader.columns, 'continuous_pages': len(window.reader.boxes),
                         'double_click_toggle': True, 'offline_lookup': True,
                         'dictionary_entries': window.dictionary.count,
-                        'reading_export': reading_report, 'reading_background': True}), encoding='utf-8')
+                        'reading_export': reading_report, 'reading_background': True,
+                        'vocabulary_export': vocabulary_report}), encoding='utf-8')
                 except Exception as exc:
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': False, 'error': str(exc)}), encoding='utf-8')
                 window.close()

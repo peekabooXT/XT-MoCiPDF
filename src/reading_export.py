@@ -205,7 +205,7 @@ def export_reading_pdf(source, destination, *, password='', pages=None, blank_li
                 report['source_pages'] += 1
             check_cancel()
             output.set_metadata({'title': (original.metadata.get('title') or source.stem) + ' - Reading notes',
-                                 'creator': 'XT-MoCiPDF 1.5', 'subject': 'Extra space between text rows for handwritten notes'})
+                                 'creator': 'XT-MoCiPDF 1.6.0', 'subject': 'Extra space between text rows for handwritten notes'})
             handle, temporary = tempfile.mkstemp(prefix='.moci-reading-', suffix='.pdf', dir=destination.parent)
             os.close(handle)
             kwargs = dict(garbage=4, deflate=True)
