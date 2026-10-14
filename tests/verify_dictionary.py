@@ -27,7 +27,7 @@ assert '锯子' in d.lookup('saw')['entry']['translation']
 assert d.lookup('in spite of')['entry'] and 'parts' not in d.lookup('in spite of')
 phrase = d.lookup('collaborative delivery system')
 assert len(phrase['parts']) == 3 and '未收录完整词组' in render_lookup(phrase)
-assert '未收录' in render_lookup(d.lookup('zzmocifoozz'))
+assert '未收录' in render_lookup(d.lookup('zzreadtracefoozz'))
 assert '较长' in d.lookup('x' * 241)['error']
 assert '<script>' not in render_lookup(d.lookup('<script>alert</script>'))
 assert normalize('  BirdS. ') == 'birds'

@@ -94,7 +94,7 @@ def verify():
         raise AssertionError('Cancel failed')
     except ExportCancelled:
         pass
-    assert target.read_bytes() == b'existing export kept' and not list(qa.glob('.moci-reading-*'))
+    assert target.read_bytes() == b'existing export kept' and not list(qa.glob('.readtrace-reading-*'))
     with fitz.open(source) as doc:
         doc.save(qa / 'protected.pdf', encryption=fitz.PDF_ENCRYPT_AES_256, owner_pw='owner', user_pw='secret')
     export_reading_pdf(qa / 'protected.pdf', qa / 'protected-output.pdf', password='secret', pages=[0], tessdata=TESSDATA)

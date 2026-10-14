@@ -1,13 +1,13 @@
 param([string]$Setup,[string]$Payload)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-if (-not $Setup) { $Setup = Join-Path $root 'dist\installer\XT-MoCiPDF-1.8.0-Setup-x64.exe' }
+if (-not $Setup) { $Setup = Join-Path $root 'dist\installer\XT-ReadTrace-1.9.0-Setup-x64.exe' }
 $installer = (Resolve-Path -LiteralPath $Setup).Path
 if (-not $Payload) { $Payload = $root }
 $Payload = (Resolve-Path -LiteralPath $Payload).Path
 $qaRoot = Join-Path $root 'work\installer-qa'
 $installDir = Join-Path $qaRoot 'app'
-$desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'XT 墨词.lnk'
+$desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) 'XT 阅迹.lnk'
 $backupShortcut = Join-Path $qaRoot 'original-desktop.lnk'
 $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{D7E6B964-0F14-45C2-8572-4378D6CDB513}_is1'
 if (Test-Path -LiteralPath $uninstallKey) { throw 'Existing installer registration found; stop before changing it' }
@@ -37,21 +37,21 @@ try {
     RunSetup 'fresh-install'
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($desktopShortcut)
-    if ($shortcut.TargetPath -ne (Join-Path $installDir 'XT墨词.exe')) { throw 'Desktop shortcut does not launch installed app' }
+    if ($shortcut.TargetPath -ne (Join-Path $installDir 'XT阅迹.exe')) { throw 'Desktop shortcut does not launch installed app' }
     if (-not (Test-Path -LiteralPath $uninstallKey)) { throw 'Windows uninstall registration missing' }
     $installedEntry = Get-ItemProperty -LiteralPath $uninstallKey
-    if ($installedEntry.DisplayVersion -ne '1.8.0') { throw 'Installed version incorrect' }
-    foreach ($file in @('XT墨词.exe','dictionary\ecdict.sqlite','_internal\tessdata\eng.traineddata')) {
+    if ($installedEntry.DisplayVersion -ne '1.9.0') { throw 'Installed version incorrect' }
+    foreach ($file in @('XT阅迹.exe','dictionary\ecdict.sqlite','_internal\tessdata\eng.traineddata')) {
         if ((Get-FileHash -LiteralPath (Join-Path $installDir $file)).Hash -ne (Get-FileHash -LiteralPath (Join-Path $Payload $file)).Hash) { throw ('Installed payload differs: '+$file) }
     }
-    $env:MOCI_VERIFY_DIR = Join-Path $qaRoot ('native-qa-' + [Guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory -Path $env:MOCI_VERIFY_DIR -Force | Out-Null
+    $env:READTRACE_VERIFY_DIR = Join-Path $qaRoot ('native-qa-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $env:READTRACE_VERIFY_DIR -Force | Out-Null
     Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
-    $app = Start-Process -FilePath (Join-Path $installDir 'XT墨词.exe') -WindowStyle Hidden -PassThru
+    $app = Start-Process -FilePath (Join-Path $installDir 'XT阅迹.exe') -WindowStyle Hidden -PassThru
     if (-not $app.WaitForExit(25000)) { throw 'Installed app verification timed out' }
-    $result = Get-Content -LiteralPath (Join-Path $env:MOCI_VERIFY_DIR 'result.json') -Raw | ConvertFrom-Json
+    $result = Get-Content -LiteralPath (Join-Path $env:READTRACE_VERIFY_DIR 'result.json') -Raw | ConvertFrom-Json
     if (-not $result.ok -or -not $result.offline_lookup -or -not $result.reading_background -or $result.vocabulary_export.terms -ne 2 -or $result.annotations -ne 5 -or -not $result.tool_shortcuts -or $result.visible_tools -ne 7) { throw ('Installed app test failed: '+$result.error) }
-    Remove-Item Env:MOCI_VERIFY_DIR -ErrorAction SilentlyContinue
+    Remove-Item Env:READTRACE_VERIFY_DIR -ErrorAction SilentlyContinue
     CheckSavedData
     RunSetup 'upgrade-install'
     $uninstaller = Join-Path $installDir 'unins000.exe'
@@ -59,12 +59,12 @@ try {
     if (-not $remove.WaitForExit(30000)) { throw 'Uninstaller timed out' }
     if ($remove.ExitCode -ne 0) { throw 'Uninstaller failed' }
     CheckSavedData
-    if (Test-Path -LiteralPath (Join-Path $installDir 'XT墨词.exe')) { throw 'Uninstaller did not remove program' }
+    if (Test-Path -LiteralPath (Join-Path $installDir 'XT阅迹.exe')) { throw 'Uninstaller did not remove program' }
     if (Test-Path -LiteralPath $uninstallKey) { throw 'Uninstaller registration left behind' }
     if (Test-Path -LiteralPath $desktopShortcut) { throw 'Test desktop shortcut left behind' }
     [pscustomobject]@{ok=$true;fresh_install=$true;upgrade_preserves_data=$true;uninstall_preserves_data=$true;desktop_shortcut=$true;windows_uninstall_entry=$true;offline_dictionary=$true;ocr=$true;reading_export=$true;app=$result} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $qaRoot 'result.json') -Encoding utf8
     Write-Output 'PASS: real installer, upgrade, desktop, uninstall registry, full offline app, and uninstall data preservation'
 } finally {
-    Remove-Item Env:MOCI_VERIFY_DIR -ErrorAction SilentlyContinue
+    Remove-Item Env:READTRACE_VERIFY_DIR -ErrorAction SilentlyContinue
     if ($hadShortcut) { Copy-Item -LiteralPath $backupShortcut -Destination $desktopShortcut -Force }
 }

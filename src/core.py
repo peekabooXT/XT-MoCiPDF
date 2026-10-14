@@ -1,4 +1,4 @@
-"""Local document library and Momo cloud-book export."""
+"""Local document library and cloud vocabulary export."""
 import hashlib
 import json
 import re

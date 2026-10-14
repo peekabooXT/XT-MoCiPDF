@@ -14,9 +14,10 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
     QPushButton, QLabel, QListWidget, QListWidgetItem, QLineEdit, QScrollArea, QSplitter,
     QSpinBox, QComboBox, QCheckBox, QFileDialog, QInputDialog, QMessageBox, QDialog,
     QPlainTextEdit, QAbstractItemView, QTextBrowser, QProgressDialog, QTableWidget,
-    QTableWidgetItem, QHeaderView, QTextEdit, QAbstractSpinBox, QKeySequenceEdit)
+    QTableWidgetItem, QHeaderView, QTextEdit, QAbstractSpinBox, QKeySequenceEdit, QSizePolicy)
 
 from core import Library, clean_term, validate_term, export_body
+from branding import APP_NAME, PROJECT_NAME, VERIFY_ENV
 from dictionary import OfflineDictionary, render_lookup
 from reading_export import export_reading_pdf, reading_export_process, page_numbers
 from vocabulary_export import vocabulary_rows, export_vocabulary_pdf
@@ -433,7 +434,7 @@ class PDFDocumentView(QWidget):
 
     def schedule_visible(self):
         # Coalesce resize/scroll bursts without postponing cache eviction on
-        # every event while the responsive toolbar is reflowing.
+        # every event during window resizing.
         if not self.busy and not self.timer.isActive():
             self.timer.start(25)
 
@@ -543,7 +544,7 @@ class ExportDialog(QDialog):
     def __init__(self, parent, record):
         super().__init__(parent)
         self.record = record
-        self.setWindowTitle('导出到墨墨 · 云词本正文')
+        self.setWindowTitle('导出云词本 · 正文')
         self.resize(690, 680)
         layout = QVBoxLayout(self)
         title = QLabel('让今天读到的词，成为明天记住的词')
@@ -551,7 +552,7 @@ class ExportDialog(QDialog):
         layout.addWidget(title)
         self.mode = QComboBox()
         for text, value in [('章节模式 · 保留完整词组（推荐）', 'chapter'), ('按 PDF 页码分章节 · 保留完整词组', 'pages'),
-                            ('普通模式 · 由墨墨提取单词和短语', 'plain'), ('原型模式 // · 由墨墨还原单词原型', 'lemma')]:
+                            ('普通模式 · 由墨墨背单词提取单词和短语', 'plain'), ('原型模式 // · 由墨墨背单词还原单词原型', 'lemma')]:
             self.mode.addItem(text, value)
         layout.addWidget(self.mode)
         options = QHBoxLayout()
@@ -575,7 +576,7 @@ class ExportDialog(QDialog):
         row.addWidget(button('保存 TXT', self.save, True))
         row.addWidget(button('关闭', self.accept))
         layout.addLayout(row)
-        layout.addWidget(muted('把正文粘贴到墨墨的云词本正文输入框。TXT 不包含翻译、编号或页码说明。'))
+        layout.addWidget(muted('把正文粘贴到墨墨背单词的云词本正文输入框。TXT 不包含翻译、编号或页码说明。'))
         for signal in (self.mode.currentIndexChanged, self.dedupe.toggled, self.lower.toggled):
             signal.connect(self.refresh)
         self.refresh()
@@ -586,14 +587,14 @@ class ExportDialog(QDialog):
         n = sum(bool(line) and not line.startswith(('#', '//')) for line in body.splitlines())
         self.count.setText(f'{n} 个词条 · UTF-8 文本 · 按 PDF 阅读位置排序')
         self.note.setText('章节模式：每行一个词条，词组不拆分，保留大小写。' if self.mode.currentData() in ('chapter', 'pages')
-                          else '此模式会由墨墨提取短语中的单词，且不区分首字母大小写。原型还原由墨墨完成。')
+                          else '此模式会由墨墨背单词提取短语中的单词，且不区分首字母大小写。原型还原由墨墨背单词完成。')
 
     def copy(self):
         QApplication.clipboard().setText(self.preview.toPlainText())
-        self.count.setText('已复制，可以粘贴到墨墨云词本。')
+        self.count.setText('已复制，可以粘贴到墨墨背单词云词本。')
 
     def save(self):
-        path, _ = QFileDialog.getSaveFileName(self, '保存墨墨词本正文', str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_墨墨词本.txt')), '文本文件 (*.txt)')
+        path, _ = QFileDialog.getSaveFileName(self, '保存云词本正文', str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_云词本.txt')), '文本文件 (*.txt)')
         if path:
             try:
                 Path(path).write_text(self.preview.toPlainText(), encoding='utf-8')
@@ -833,7 +834,7 @@ class MainWindow(QMainWindow):
         self.dictionary_timer = QTimer(self)
         self.dictionary_timer.setSingleShot(True)
         self.dictionary_timer.timeout.connect(lambda: self.lookup_term(self.dictionary_pending))
-        self.setWindowTitle('XT 墨词 · 读一页，记一点')
+        self.setWindowTitle(APP_NAME + ' · 读一页，记一点')
         self.setMinimumSize(1040, 700)
         self.resize(1480, 920)
         if (ASSETS / 'icon.ico').exists():
@@ -843,7 +844,7 @@ class MainWindow(QMainWindow):
         outer = QVBoxLayout(central)
         outer.setContentsMargins(16, 14, 16, 8)
         header = QHBoxLayout()
-        brand = QLabel('XT 墨词')
+        brand = QLabel(APP_NAME)
         brand.setObjectName('title')
         header.addWidget(brand)
         header.addWidget(muted('XT · 精读与积累'))
@@ -909,8 +910,12 @@ class MainWindow(QMainWindow):
         cl.addLayout(searchrow)
         self.annotation_tool = AnnotationToolBar(self.tool_shortcuts)
         self.annotation_tool.setToolTip('选词模式双击收录；批注模式拖动做记号，备注模式单击添加。Esc 返回选词。')
-        cl.addWidget(self.annotation_tool)
-        annotation_row = QHBoxLayout()
+        self.annotation_strip = QWidget()
+        annotation_row = QHBoxLayout(self.annotation_strip)
+        annotation_row.setContentsMargins(0, 0, 0, 0)
+        annotation_row.setSpacing(5)
+        self.annotation_tool.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        annotation_row.addWidget(self.annotation_tool)
         self.annotation_color = QComboBox()
         for label, color in [('金黄', '#f4c542'), ('珊瑚红', '#e87070'), ('湖蓝', '#4799de'),
                               ('紫色', '#a077d8'), ('绿色', '#46a886')]:
@@ -930,7 +935,15 @@ class MainWindow(QMainWindow):
         self.manage_annotation_button = button('批注 · 0', self.manage_annotations)
         annotation_row.addWidget(self.manage_annotation_button)
         annotation_row.addStretch()
-        cl.addLayout(annotation_row)
+        self.annotation_navigation = QScrollArea()
+        self.annotation_navigation.setObjectName('annotationNavigation')
+        self.annotation_navigation.setStyleSheet('QScrollArea#annotationNavigation { background: transparent; border: none; }')
+        self.annotation_navigation.setWidgetResizable(True)
+        self.annotation_navigation.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.annotation_navigation.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.annotation_navigation.setFixedHeight(54)
+        self.annotation_navigation.setWidget(self.annotation_strip)
+        cl.addWidget(self.annotation_navigation)
         self.scroll = QScrollArea()
         self.scroll.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
         self.reader = PDFDocumentView(self)
@@ -987,7 +1000,7 @@ class MainWindow(QMainWindow):
         row.addWidget(button('编辑词条', self.edit_mark))
         row.addWidget(button('删除', self.delete_marks))
         rl.addLayout(row)
-        rl.addWidget(button('一键导出墨墨 TXT', self.quick_export, True))
+        rl.addWidget(button('一键导出云词本 TXT', self.quick_export, True))
         rl.addWidget(button('预览 / 复制 / 导出设置', self.export_dialog))
         rl.addWidget(button('导出收录与批注 PDF', self.export_pdf))
         self.vocabulary_button = button('导出单词释义表 PDF', self.export_vocabulary)
@@ -998,7 +1011,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(right)
         splitter.setSizes([220, 900, 340])
         splitter.setStretchFactor(1, 1)
-        self.statusBar().showMessage('欢迎使用XT 墨词')
+        self.statusBar().showMessage('欢迎使用XT 阅迹')
         self.doc_filter.textChanged.connect(self.refresh_library)
         self.library_list.itemClicked.connect(self.library_clicked)
         self.page_spin.valueChanged.connect(lambda v: self.go_page(v - 1))
@@ -1513,7 +1526,7 @@ class MainWindow(QMainWindow):
         if not self.has_marks():
             return
         (APP_ROOT / 'exports').mkdir(exist_ok=True)
-        path, _ = QFileDialog.getSaveFileName(self, '一键导出墨墨词本', str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_墨墨词本.txt')), '文本文件 (*.txt)')
+        path, _ = QFileDialog.getSaveFileName(self, '一键导出云词本', str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_云词本.txt')), '文本文件 (*.txt)')
         if path:
             try:
                 Path(path).write_text(export_body(self.record), encoding='utf-8')
@@ -1713,15 +1726,15 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage('未找到匹配。扫描页需先识别，词组请使用 PDF 中的原文查找。', 7000)
 
     def help(self):
-        QMessageBox.information(self, 'XT 墨词 · 使用帮助',
+        QMessageBox.information(self, 'XT 阅迹 · 使用帮助',
             '1. 点击「导入 PDF」，也可以把 PDF 拖入窗口。\n'
             '2. 单击一个单词，或从词组第一个词拖到最后一个词。\n'
             '3. 核对下方输入框，按 Enter 或点击「标记选词」。\n'
             '   快捷操作：双击单词直接收录，再次双击青绿下划线词条即可取消。\n'
-            '4. 点击「一键导出墨墨 TXT」，把 TXT 正文粘贴到墨墨云词本。\n\n'
+            '4. 点击「一键导出云词本 TXT」，把 TXT 正文粘贴到墨墨背单词云词本。\n\n'
             '扫描页：点击「识别当前页」，完成后同样选择词条。OCR 结果可能有误，请核对。\n'
             '词本：双击返回原页；编辑修正拼写；Ctrl 多选后删除。\n'
-            '章节模式保留词组与大小写。// 原型模式由墨墨进行词形还原。\n'
+            '章节模式保留词组与大小写。// 原型模式由墨墨背单词进行词形还原。\n'
             '快捷键：Ctrl+O 导入，Ctrl+E 导出，Ctrl+F 查找。\n\n'
             '精读：右侧「导出精读 PDF」可生成留空行的打印副本。\n'
             '批注：顶部选择高亮、下划线、画笔、矩形框或文字备注，旁边可选颜色和线宽。\n'
@@ -1768,18 +1781,19 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName('XT 墨词')
+    app.setApplicationName(APP_NAME)
+    app.setOrganizationName(PROJECT_NAME)
     configure_fonts(app)
     app.setStyle('Fusion')
     app.setStyleSheet(STYLE)
     try:
-        verify_dir = os.environ.get('MOCI_VERIFY_DIR')
+        verify_dir = os.environ.get(VERIFY_ENV)
         data_root = Path(verify_dir) / 'data' if verify_dir else APP_ROOT / 'data'
         data_root.mkdir(parents=True, exist_ok=True)
         lock = QLockFile(str(data_root / 'session.lock'))
         lock.setStaleLockTime(30000)
         if not lock.tryLock(100):
-            QMessageBox.information(None, 'XT 墨词', '软件已经在运行，请切换到已打开的XT 墨词 窗口。')
+            QMessageBox.information(None, 'XT 阅迹', '软件已经在运行，请切换到已打开的XT 阅迹 窗口。')
             return 0
         window = MainWindow(data_root, reopen=not bool(verify_dir))
         window.show()
@@ -1904,7 +1918,7 @@ def main():
                 window.import_file(path)
         return app.exec()
     except Exception as exc:
-        QMessageBox.critical(None, 'XT 墨词 启动失败', str(exc))
+        QMessageBox.critical(None, 'XT 阅迹 启动失败', str(exc))
         return 1
 
 

@@ -1,4 +1,4 @@
-XT 墨词 / XT-MoCiPDF 1.8.0
+XT 阅迹 / XT-ReadTrace 1.9.0
 用户定制的本地 Windows 64 位 PDF 词条收集工具。
 
 依赖：
@@ -30,5 +30,5 @@ https://www.sqlite.org/copyright.html
 如需重建：python src/build_dictionary.py 原始CSV路径 新词典目录
 原始 CSV 同级需包含 ECDICT 的 LICENSE 和本包 dictionary/source.json 的来源元数据副本。
 
-导出格式依据用户提供的墨墨云词本提词帮助截图。
-本软件不属于墨墨官方，不登录墨墨，不向墨墨上传 PDF 或词条。
+导出格式依据用户提供的墨墨背单词云词本提词帮助截图。
+本软件不属于墨墨背单词官方，不登录墨墨背单词，不向墨墨背单词上传 PDF 或词条。

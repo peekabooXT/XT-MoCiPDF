@@ -47,7 +47,7 @@ lines = [
 for i, line in enumerate(lines):
     page.insert_text((52, 206 + i * 27), line, fontsize=13)
 page.insert_text((52, 720), 'Click a word. Drag across a phrase. Press Enter to save.', fontsize=11, color=(.04,.5,.45))
-page.insert_text((52, 786), 'MoCi PDF / Sample 01', fontsize=9, color=(.5,.55,.6))
+page.insert_text((52, 786), 'XT-ReadTrace / Sample 01', fontsize=9, color=(.5,.55,.6))
 page2 = doc.new_page(width=595, height=842)
 page2.insert_text((52, 70), 'Your next chapter', fontsize=23)
 page2.insert_text((52, 126), 'Watching TV can help with listening comprehension.', fontsize=13)

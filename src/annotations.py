@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 import pymupdf as fitz
+from branding import PROJECT_NAME
 
 COLLECTED_COLOR = '#087f73'
 KINDS = {'highlight': '文字高亮', 'underline': '文字下划线', 'ink': '画笔',
@@ -100,7 +101,7 @@ def add_collected_style(doc, marks):
                     xref = page.insert_image(area + (dx, dy, dx, dy), stream=png if not xref else None,
                                              xref=xref, overlay=True)
             annot = page.add_underline_annot([fitz.Rect(r).quad for r in mark['rects']])
-            annot.set_info(content=mark.get('term', ''), subject='已收录词条', title='XT MoCiPDF')
+            annot.set_info(content=mark.get('term', ''), subject='已收录词条', title=PROJECT_NAME)
             annot.set_colors(stroke=color_rgb(COLLECTED_COLOR))
             annot.update()
             set_underline_width(annot, 1.5)
@@ -142,7 +143,7 @@ def add_reading_annotations(doc, annotations):
         else:
             raise ValueError('不支持的批注类型：' + kind)
         annot.set_colors(stroke=color_rgb(item['color']))
-        annot.set_info(content=item.get('text', ''), title='XT MoCiPDF')
+        annot.set_info(content=item.get('text', ''), title=PROJECT_NAME)
         if kind in ('ink', 'rect'):
             annot.set_border(width=item['width'])
         annot.set_opacity(.35 if kind == 'highlight' else 1)

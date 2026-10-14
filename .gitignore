@@ -1,6 +1,7 @@
 # Personal reading data is always local.
 data/
 exports/
+.readtrace-upgrade*/
 work/
 .venv/
 __pycache__/

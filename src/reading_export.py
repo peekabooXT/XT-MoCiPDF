@@ -13,6 +13,7 @@ from statistics import median
 
 import pymupdf as fitz
 from annotations import add_collected_style
+from branding import PROJECT_NAME, VERSION
 
 
 class ExportCancelled(Exception):
@@ -201,8 +202,8 @@ def export_reading_pdf(source, destination, *, password='', pages=None, blank_li
                 report['source_pages'] += 1
             check_cancel()
             output.set_metadata({'title': (original.metadata.get('title') or source.stem) + ' - Reading notes',
-                                 'creator': 'XT-MoCiPDF 1.8.0', 'subject': 'Extra space between text rows for handwritten notes'})
-            handle, temporary = tempfile.mkstemp(prefix='.moci-reading-', suffix='.pdf', dir=destination.parent)
+                                 'creator': PROJECT_NAME + ' ' + VERSION, 'subject': 'Extra space between text rows for handwritten notes'})
+            handle, temporary = tempfile.mkstemp(prefix='.readtrace-reading-', suffix='.pdf', dir=destination.parent)
             os.close(handle)
             kwargs = dict(garbage=4, deflate=True)
             if encrypted:

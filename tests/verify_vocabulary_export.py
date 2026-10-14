@@ -30,7 +30,7 @@ w.show()
 w.import_file(str(ROOT / 'Example.pdf'))
 QTest.qWait(150)
 for page, term in [(0, 'discovery'), (0, 'mother'), (1, 'mother'), (1, 'china'),
-                   (1, 'China'), (1, 'flying'), (1, 'collaborative delivery system'), (1, 'zzmocifoozz')]:
+                   (1, 'China'), (1, 'flying'), (1, 'collaborative delivery system'), (1, 'zzreadtracefoozz')]:
     w.go_page(page)
     w.term_edit.setText(term)
     w.add_mark()
@@ -43,7 +43,7 @@ assert [term for term, meaning in rows][:2] == ['discovery', 'mother']
 assert {'china', 'China'} <= {term for term, meaning in rows}
 assert '母亲' in dict(rows)['mother'] and '词形参考 fly' in dict(rows)['flying']
 assert '逐词释义' in dict(rows)['collaborative delivery system']
-assert '未收录' in dict(rows)['zzmocifoozz']
+assert '未收录' in dict(rows)['zzreadtracefoozz']
 selected = {record['marks'][1]['id']}
 assert vocabulary_rows(record, w.dictionary, ids=selected)[0][0] == 'mother'
 pdf = qa / 'table.pdf'

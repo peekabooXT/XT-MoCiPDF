@@ -134,7 +134,8 @@ dialog.reset()
 dialog.reject()
 assert w.tool_shortcuts == saved
 
-# Responsive wrapping keeps all buttons within the navigation area at any size.
+# All tools and auxiliary controls stay in one row, with horizontal scrolling
+# only when the available reader width cannot fit the complete strip.
 for size, image in [((2560, 1392), 'wide.png'), ((1040, 700), 'minimum.png')]:
     w.resize(*size)
     QTest.qWait(250)
@@ -143,6 +144,17 @@ for size, image in [((2560, 1392), 'wide.png'), ((1040, 700), 'minimum.png')]:
     for i, a in enumerate(toolbar.buttons):
         assert all(not a.geometry().intersects(b.geometry()) for b in toolbar.buttons[i + 1:])
     assert all(button.isVisible() for button in toolbar.buttons)
+    controls = toolbar.buttons + [w.annotation_color, w.annotation_width,
+        w.undo_annotation_button, w.redo_annotation_button, w.manage_annotation_button]
+    positions = [widget.mapTo(w.annotation_strip, widget.rect().center()) for widget in controls]
+    assert max(p.y() for p in positions) - min(p.y() for p in positions) <= 2
+    if size[0] == 2560:
+        assert w.annotation_navigation.horizontalScrollBar().maximum() == 0
+    else:
+        assert w.annotation_navigation.horizontalScrollBar().maximum() > 0
+        w.annotation_navigation.horizontalScrollBar().setValue(w.annotation_navigation.horizontalScrollBar().maximum())
+        assert w.annotation_navigation.viewport().rect().contains(
+            w.manage_annotation_button.mapTo(w.annotation_navigation.viewport(), w.manage_annotation_button.rect().center()))
     w.grab().save(str(qa / image))
 assert w.record['marks'] == marks and not w.record.get('annotations')
 w.close()
@@ -174,5 +186,5 @@ for invalid in ('Ctrl+O', 'Esc', 'Return', 'Ctrl+K, Ctrl+H', 'NotAKey'):
     except ValueError:
         pass
 assert not errors, errors
-print('PASS: visible/wrapped exclusive tool buttons, real keys 1–7/keypad, safe text/notes/spin input, editable chord capture, conflict rejection, disabling/reset/cancel, failed-save rollback, persistence/reopen and custom dispatch.')
+print('PASS: single-row tools and auxiliary controls, horizontal access in narrow windows, real keys 1–7/keypad, safe input, editable shortcuts/conflicts, disabling/reset/cancel, save rollback and persistence.')
 print('Visual QA:', qa)

@@ -2,6 +2,7 @@
 import os
 import tempfile
 from pathlib import Path
+from branding import APP_NAME, PROJECT_NAME, VERSION
 
 from PySide6.QtCore import Qt, QPointF, QRectF, QMarginsF
 from PySide6.QtGui import (QColor, QFont, QFontMetricsF, QPainter, QPageSize,
@@ -138,7 +139,7 @@ def export_vocabulary_pdf(path, title, rows):
         writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
         writer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Point)
         writer.setTitle(title + ' - 单词释义表')
-        writer.setCreator('XT-MoCiPDF 1.8.0')
+        writer.setCreator(PROJECT_NAME + ' ' + VERSION)
         painter = QPainter()
         if not painter.begin(writer):
             raise OSError('无法创建 PDF，请检查保存位置权限。')
@@ -155,7 +156,7 @@ def export_vocabulary_pdf(path, title, rows):
                 raise OSError('无法创建 PDF 后续页面。')
             painter.setFont(_font(18, True))
             painter.setPen(QColor('#087f73'))
-            painter.drawText(QPointF(margin, 45), 'XT 墨词 · 单词释义表')
+            painter.drawText(QPointF(margin, 45), APP_NAME + ' · 单词释义表')
             painter.setFont(small)
             painter.setPen(QColor('#647d84'))
             for i, line in enumerate(title_lines):

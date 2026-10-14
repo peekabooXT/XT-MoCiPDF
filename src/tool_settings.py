@@ -1,7 +1,7 @@
 """Visible annotation tools and user-configurable, single-chord shortcuts."""
-from PySide6.QtCore import Qt, Signal, QRect, QSize
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence
-from PySide6.QtWidgets import (QWidget, QPushButton, QButtonGroup, QLayout, QDialog,
+from PySide6.QtWidgets import (QWidget, QPushButton, QButtonGroup, QDialog,
                                QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QKeySequenceEdit)
 
 TOOLS = [('选词 / 阅读', 'select'), ('文字高亮', 'highlight'), ('文字下划线', 'underline'),
@@ -41,62 +41,6 @@ def load_shortcuts(state):
         return dict(DEFAULT_SHORTCUTS)
 
 
-class FlowLayout(QLayout):
-    """Wrap buttons without hiding any tool behind a menu or scrollbar."""
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.items = []
-        self.setContentsMargins(0, 0, 0, 0)
-        self.setSpacing(6)
-
-    def addItem(self, item):
-        self.items.append(item)
-
-    def count(self):
-        return len(self.items)
-
-    def itemAt(self, index):
-        return self.items[index] if 0 <= index < len(self.items) else None
-
-    def takeAt(self, index):
-        return self.items.pop(index) if 0 <= index < len(self.items) else None
-
-    def expandingDirections(self):
-        return Qt.Orientation(0)
-
-    def hasHeightForWidth(self):
-        return True
-
-    def heightForWidth(self, width):
-        return self.arrange(QRect(0, 0, width, 0), apply=False)
-
-    def setGeometry(self, rect):
-        super().setGeometry(rect)
-        self.arrange(rect, apply=True)
-
-    def sizeHint(self):
-        return self.minimumSize()
-
-    def minimumSize(self):
-        size = QSize()
-        for item in self.items:
-            size = size.expandedTo(item.minimumSize())
-        return size
-
-    def arrange(self, rect, apply):
-        x, y, height = rect.x(), rect.y(), 0
-        for item in self.items:
-            size = item.sizeHint()
-            if x > rect.x() and x + size.width() > rect.x() + rect.width():
-                x, y = rect.x(), y + height + self.spacing()
-                height = 0
-            if apply:
-                item.setGeometry(QRect(x, y, size.width(), size.height()))
-            x += size.width() + self.spacing()
-            height = max(height, size.height())
-        return y + height - rect.y()
-
-
 class AnnotationToolBar(QWidget):
     currentIndexChanged = Signal(int)
 
@@ -106,7 +50,9 @@ class AnnotationToolBar(QWidget):
         self.buttons = []
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
-        layout = FlowLayout(self)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
         for index, (label, key) in enumerate(TOOLS):
             button = QPushButton(label)
             button.setObjectName('annotationTool')
