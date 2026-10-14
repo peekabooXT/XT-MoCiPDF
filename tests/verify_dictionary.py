@@ -8,6 +8,8 @@ from pathlib import Path
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from i18n import set_language
+set_language('zh-CN')
 from dictionary import OfflineDictionary, normalize, render_lookup
 from core import export_body
 from app import MainWindow, STYLE, configure_fonts
@@ -46,7 +48,7 @@ app = QApplication([])
 configure_fonts(app)
 app.setStyle('Fusion')
 app.setStyleSheet(STYLE)
-w = MainWindow(qa / 'library', reopen=False)
+w = MainWindow(qa / 'library', reopen=False, language='zh-CN')
 w.show()
 w.import_file(str(ROOT / 'Example.pdf'))
 QTest.qWait(200)

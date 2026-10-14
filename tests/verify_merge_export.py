@@ -8,6 +8,8 @@ from pathlib import Path
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from i18n import set_language
+set_language('zh-CN')
 import pymupdf as fitz
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtTest import QTest
@@ -23,7 +25,7 @@ app.setStyle('Fusion')
 app.setStyleSheet(STYLE)
 errors = []
 QMessageBox.critical = lambda *args: errors.append(args[2])
-w = MainWindow(qa / 'data', reopen=False)
+w = MainWindow(qa / 'data', reopen=False, language='zh-CN')
 w.show()
 sources = []
 for name in ('试卷 A', '论文 B', '空文档'):
@@ -157,7 +159,7 @@ assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest() == digest for p, dig
 w.close()
 
 # Library-wide merge remains available without opening an active PDF.
-w = MainWindow(qa / 'data', reopen=False)
+w = MainWindow(qa / 'data', reopen=False, language='zh-CN')
 assert w.record is None
 opened = []
 original_exec = MergeExportDialog.exec

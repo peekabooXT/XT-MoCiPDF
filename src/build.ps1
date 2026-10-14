@@ -1,4 +1,4 @@
-# Run with a standalone Python 3.12+ installation (avoid Anaconda Qt DLL conflicts).
+﻿# Run with a standalone Python 3.12+ installation (avoid Anaconda Qt DLL conflicts).
 param([string]$Python = 'python')
 $ErrorActionPreference = 'Stop'
 $packageRoot = Split-Path -Parent $PSScriptRoot
@@ -11,7 +11,7 @@ $pythonExe = Join-Path $buildRoot 'venv\Scripts\python.exe'
 if ($LASTEXITCODE -ne 0) { throw 'Cannot install dependencies' }
 & (Join-Path $PSScriptRoot 'prepare_dictionary.ps1') -Python $pythonExe
 if ($LASTEXITCODE -ne 0) { throw 'Cannot prepare offline dictionary' }
-& $pythonExe -m PyInstaller --noconfirm --clean --onedir --windowed --name 'XT阅迹' --version-file (Join-Path $PSScriptRoot 'version_info.txt') --icon (Join-Path $packageRoot 'icon.ico') --add-data "$(Join-Path $packageRoot 'tessdata');tessdata" --add-data "$(Join-Path $packageRoot 'icon.ico');." --distpath (Join-Path $buildRoot 'dist') --workpath (Join-Path $buildRoot 'build') --specpath $buildRoot (Join-Path $PSScriptRoot 'app.py')
+& $pythonExe -m PyInstaller --noconfirm --clean --onedir --windowed --name 'XT阅迹' --version-file (Join-Path $PSScriptRoot 'version_info.txt') --icon (Join-Path $packageRoot 'icon.ico') --add-data "$(Join-Path $packageRoot 'tessdata');tessdata" --add-data "$(Join-Path $packageRoot 'icon.ico');." --add-data "$(Join-Path $packageRoot 'locales');locales" --add-data "$(Join-Path $packageRoot 'fonts');fonts" --distpath (Join-Path $buildRoot 'dist') --workpath (Join-Path $buildRoot 'build') --specpath $buildRoot (Join-Path $PSScriptRoot 'app.py')
 if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
 # Qt 6.12 uses Windows' unversioned ICU API. A Python-distribution ICU DLL
 # can be collected by PyInstaller from PATH and shadow the system ICU.
@@ -30,14 +30,16 @@ foreach ($file in @('ecdict.sqlite', 'source.json', 'LICENSE.txt')) {
     Copy-Item -LiteralPath (Join-Path $dictionarySource $file) -Destination $dictionaryTarget -Force
 }
 $finalRoot = Join-Path $buildRoot 'dist\XT阅迹'
-foreach ($folder in @('src', 'licenses', 'tessdata', 'tests', 'installer')) {
+foreach ($folder in @('src', 'licenses', 'tessdata', 'tests', 'installer', 'fonts', 'locales')) {
     $destination = Join-Path $finalRoot $folder
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $packageRoot $folder) -File | ForEach-Object {
         Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
     }
 }
-foreach ($file in @('README.md', 'NAMING.md', 'LICENSE', '使用说明.md', '第三方说明.txt', 'Example.pdf', '精读导出示例.pdf', '单词释义表导出示例.pdf', '论文批注导出示例.pdf', 'icon.ico')) {
+foreach ($file in @('README.md', 'NAMING.md', 'NOTICE.txt', 'LICENSE', '使用说明.md', '第三方说明.txt', 'Example.pdf', '精读导出示例.pdf', '单词释义表导出示例.pdf', '论文批注导出示例.pdf', 'icon.ico')) {
     Copy-Item -LiteralPath (Join-Path $packageRoot $file) -Destination $finalRoot -Force
 }
 Write-Output "Build ready in $buildRoot\dist\XT阅迹"
+
+Get-ChildItem -LiteralPath $packageRoot -Filter 'README.*.md' -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $finalRoot -Force }

@@ -9,6 +9,8 @@ from pathlib import Path
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from i18n import set_language
+set_language('zh-CN')
 import pymupdf as fitz
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QApplication, QMessageBox, QInputDialog, QFileDialog
@@ -37,7 +39,7 @@ with fitz.open() as doc:
     existing.update()
     doc.save(source)
 original_hash = hashlib.sha256(source.read_bytes()).hexdigest()
-w = MainWindow(qa / 'data', reopen=False)
+w = MainWindow(qa / 'data', reopen=False, language='zh-CN')
 w.show()
 w.import_file(str(source))
 QTest.qWait(70)
@@ -219,7 +221,7 @@ w.grab().save(str(qa / 'minimum.png'))
 w.close()
 loaded = Library(qa / 'data').state['documents'][0]
 assert loaded['annotations'] == state['annotations'] and loaded['marks'] == state['marks']
-w = MainWindow(qa / 'data', reopen=False)
+w = MainWindow(qa / 'data', reopen=False, language='zh-CN')
 w.show()
 w.open_record(loaded)
 assert w.canvas.annotations and w.manage_annotation_button.text() == '批注 · 7'

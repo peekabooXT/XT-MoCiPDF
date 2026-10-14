@@ -1,4 +1,6 @@
 """Two-column vocabulary PDF using the app's existing Qt font support."""
+
+from i18n import tr, font_families
 import os
 import tempfile
 from pathlib import Path
@@ -10,25 +12,25 @@ from PySide6.QtGui import (QColor, QFont, QFontMetricsF, QPainter, QPageSize,
 
 
 def _meaning(entry):
-    text = entry.get('translation') or entry.get('definition') or '暂无释义'
+    text = entry.get('translation') or entry.get('definition') or tr('暂无释义')
     text = text.replace('\\n', '\n').replace('\r\n', '\n').strip()
-    return text if entry.get('translation') else '英文释义：\n' + text
+    return text if entry.get('translation') else tr('英文释义：\n') + text
 
 
 def meaning_text(result):
     if result.get('error'):
         return result['error']
     if 'parts' in result:
-        parts = ['未收录完整词组，以下为逐词释义：']
+        parts = [tr('未收录完整词组，以下为逐词释义：')]
         for part in result['parts']:
             parts.append(part['query'] + '：\n' + meaning_text(part))
         if result.get('truncated'):
-            parts.append('仅列出前 12 个词。')
+            parts.append(tr('仅列出前 12 个词。'))
         return '\n\n'.join(parts)
     parts = [_meaning(result['entry'])] if result.get('entry') else []
     for base in result.get('bases', []):
-        parts.append('词形参考 ' + base['word'] + '：\n' + _meaning(base))
-    return '\n\n'.join(parts) if parts else '词典未收录，请核对拼写或补充释义。'
+        parts.append(tr('词形参考 ') + base['word'] + '：\n' + _meaning(base))
+    return '\n\n'.join(parts) if parts else tr('词典未收录，请核对拼写或补充释义。')
 
 
 def vocabulary_rows(record, dictionary, dedupe=True, ids=None):
@@ -47,8 +49,12 @@ def vocabulary_rows(record, dictionary, dedupe=True, ids=None):
     return rows
 
 
-def _font(size=11, bold=False):
-    font = QFont('Microsoft YaHei')
+def _font(size=11, bold=False, localized=True):
+    font = QFont()
+    families = font_families()
+    # User meanings keep their own script. Put the Chinese dictionary font
+    # first for table rows to preserve canonical CJK text in PDF extraction.
+    font.setFamilies(families if localized else ['Microsoft YaHei'] + families)
     font.setPixelSize(size)
     font.setBold(bold)
     return font
@@ -87,9 +93,9 @@ def export_vocabulary_pdf(path, title, rows):
     """
     rows = [(str(term), str(meaning)) for term, meaning in rows]
     if not rows:
-        raise ValueError('没有可以导出的词条。')
+        raise ValueError(tr('没有可以导出的词条。'))
     if any(not term.strip() for term, meaning in rows):
-        raise ValueError('词条不能为空。')
+        raise ValueError(tr('词条不能为空。'))
     path = Path(path)
     handle, temporary = tempfile.mkstemp(prefix='.xt-vocabulary-', suffix='.pdf', dir=path.parent)
     os.close(handle)
@@ -98,7 +104,7 @@ def export_vocabulary_pdf(path, title, rows):
     try:
         width, height, margin, pad = 595, 842, 36, 10
         table_width, left_width = width - margin * 2, 174
-        font, small, bold = _font(), _font(9), _font(11, True)
+        font, small, bold = _font(localized=False), _font(9), _font(11, True)
         line_height = max(16, QFontMetricsF(font).height() + 2)
         title_lines = _wrap(title, small, table_width)[:2]
         top = 65 + len(title_lines) * 13
@@ -122,10 +128,10 @@ def export_vocabulary_pdf(path, title, rows):
                     remaining = bottom - top - header_height
                 count = min(total - offset, int((remaining - pad * 2) // line_height))
                 if count <= 0:
-                    raise ValueError('表格布局空间不足。')
+                    raise ValueError(tr('表格布局空间不足。'))
                 left_part = left[offset:offset + count]
                 if continuation and not left_part:
-                    left_part = _wrap(term, font, left_width - pad * 2) + ['（续页）']
+                    left_part = _wrap(term, font, left_width - pad * 2) + [tr('（续页）')]
                     count = max(count, len(left_part))
                 row_height = count * line_height + pad * 2
                 page.append((left_part, right[offset:offset + count], row_height))
@@ -138,11 +144,11 @@ def export_vocabulary_pdf(path, title, rows):
         writer.setResolution(72)
         writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
         writer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout.Unit.Point)
-        writer.setTitle(title + ' - 单词释义表')
+        writer.setTitle(title + tr(' - 单词释义表'))
         writer.setCreator(PROJECT_NAME + ' ' + VERSION)
         painter = QPainter()
         if not painter.begin(writer):
-            raise OSError('无法创建 PDF，请检查保存位置权限。')
+            raise OSError(tr('无法创建 PDF，请检查保存位置权限。'))
         metrics = QFontMetricsF(font)
 
         def text_lines(lines, x, y):
@@ -153,10 +159,10 @@ def export_vocabulary_pdf(path, title, rows):
 
         for number, items in enumerate(pages, 1):
             if number > 1 and not writer.newPage():
-                raise OSError('无法创建 PDF 后续页面。')
+                raise OSError(tr('无法创建 PDF 后续页面。'))
             painter.setFont(_font(18, True))
             painter.setPen(QColor('#087f73'))
-            painter.drawText(QPointF(margin, 45), APP_NAME + ' · 单词释义表')
+            painter.drawText(QPointF(margin, 45), APP_NAME + tr(' · 单词释义表'))
             painter.setFont(small)
             painter.setPen(QColor('#647d84'))
             for i, line in enumerate(title_lines):
@@ -164,8 +170,8 @@ def export_vocabulary_pdf(path, title, rows):
             painter.fillRect(QRectF(margin, top, table_width, header_height), QColor('#e5f1ee'))
             painter.setFont(bold)
             painter.setPen(QColor('#087f73'))
-            painter.drawText(QPointF(margin + pad, top + 19), '英文单词 / 词组')
-            painter.drawText(QPointF(margin + left_width + pad, top + 19), '中文释义')
+            painter.drawText(QPointF(margin + pad, top + 19), tr('英文单词 / 词组'))
+            painter.drawText(QPointF(margin + left_width + pad, top + 19), tr('中文释义'))
             y = top + header_height
             for index, (left, right, row_height) in enumerate(items):
                 if index % 2:
@@ -182,7 +188,7 @@ def export_vocabulary_pdf(path, title, rows):
             painter.drawLine(QPointF(margin, top + header_height), QPointF(margin + table_width, top + header_height))
             painter.setFont(small)
             painter.setPen(QColor('#6b8087'))
-            painter.drawText(QPointF(margin, height - 25), f'共 {len(rows)} 个词条 · 第 {number} / {len(pages)} 页')
+            painter.drawText(QPointF(margin, height - 25), tr('共 {arg0} 个词条 · 第 {arg1} / {arg2} 页', arg0=len(rows), arg1=number, arg2=len(pages)))
         painter.end()
         painter = None
         writer = None

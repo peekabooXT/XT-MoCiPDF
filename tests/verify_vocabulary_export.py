@@ -8,6 +8,8 @@ from collections import Counter
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from i18n import set_language
+set_language('zh-CN')
 import pymupdf as fitz
 from PySide6.QtWidgets import QApplication, QInputDialog, QFileDialog, QMessageBox
 from PySide6.QtCore import Qt
@@ -25,7 +27,7 @@ app.setStyleSheet(STYLE)
 errors = []
 QMessageBox.critical = lambda *args: errors.append(args[2])
 QMessageBox.warning = lambda *args: errors.append(args[2])
-w = MainWindow(qa / 'library', reopen=False)
+w = MainWindow(qa / 'library', reopen=False, language='zh-CN')
 w.show()
 w.import_file(str(ROOT / 'Example.pdf'))
 QTest.qWait(150)

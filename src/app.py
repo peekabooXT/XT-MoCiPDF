@@ -1,3 +1,5 @@
+
+from i18n import tr
 import os
 import sys
 import copy
@@ -18,6 +20,9 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
 
 from core import (Library, clean_term, validate_term, export_body, merged_record,
                   export_merged_body, protect_export_path, write_export_text)
+from i18n import LANGUAGES, current_language, load_language, set_language
+from localized_widgets import (QLabel, QPushButton, QCheckBox, QLineEdit, QPlainTextEdit,
+    QTextBrowser, QComboBox, QSpinBox, QDialog, QMainWindow, QProgressDialog, QTableWidget, QFileDialog)
 from branding import APP_NAME, PROJECT_NAME, VERIFY_ENV
 from dictionary import OfflineDictionary, normalize, render_lookup
 from reading_export import export_reading_pdf, reading_export_process, page_numbers
@@ -26,6 +31,7 @@ from annotations import (COLLECTED_COLOR, KINDS, ink_rgba, annotation_at,
                          export_annotated_pdf, note_layout, render_note)
 from tool_settings import (AnnotationToolBar, ShortcutSettingsDialog, TOOLS, PORTABLE,
                            load_shortcuts, validated_shortcuts)
+from author_statement import statement_html
 
 APP_ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]
 ASSETS = Path(getattr(sys, '_MEIPASS', APP_ROOT))
@@ -59,8 +65,11 @@ QStatusBar { background: white; color: #60767d; }
 
 
 def configure_fonts(app):
+    for font_path in (ASSETS / 'fonts').glob('*.ttf'):
+        QFontDatabase.addApplicationFont(str(font_path))
     # Explicitly register Windows fonts, also works in headless rendering tests.
-    for font in ('msyh.ttc', 'msyhbd.ttc', 'consola.ttf'):
+    for font in ('msyh.ttc', 'msyhbd.ttc', 'consola.ttf', 'arial.ttf', 'arialbd.ttf',
+                 'Nirmala.ttc', 'segoeui.ttf', 'segoeuib.ttf', 'tahoma.ttf'):
         path = Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts' / font
         if path.exists():
             QFontDatabase.addApplicationFont(str(path))
@@ -129,7 +138,7 @@ class PDFCanvas(QWidget):
         if self.image.isNull():
             p.fillRect(self.rect(), Qt.GlobalColor.white)
             p.setPen(QColor('#758990'))
-            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, f'第 {self.page_no + 1} 页 · 正在加载')
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, tr('第 {arg0} 页 · 正在加载', arg0=self.page_no + 1))
             return
         p.drawPixmap(0, 0, self.image)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -471,25 +480,25 @@ class PDFDocumentView(QWidget):
         for n, box in enumerate(self.boxes):
             if box.adjusted(0, -24, 0, 0).intersects(QRectF(event.rect())):
                 p.drawText(QRectF(box.x(), box.y() - 24, box.width(), 20),
-                           Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, f'第 {n + 1} 页')
+                           Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, tr('第 {arg0} 页', arg0=n + 1))
 
 
 class AnnotationDialog(QDialog):
     def __init__(self, owner):
         super().__init__(owner)
         self.owner = owner
-        self.setWindowTitle('管理论文批注')
+        self.setWindowTitle(tr('管理论文批注'))
         self.resize(600, 460)
         layout = QVBoxLayout(self)
-        layout.addWidget(muted('双击定位批注；文字备注可编辑。删除批注可以撤销。'))
+        layout.addWidget(muted(tr('双击定位批注；文字备注可编辑。删除批注可以撤销。')))
         self.items = QListWidget()
         self.items.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         layout.addWidget(self.items)
         row = QHBoxLayout()
-        row.addWidget(button('定位', self.locate))
-        row.addWidget(button('编辑备注', self.edit))
-        row.addWidget(button('删除所选', self.delete))
-        row.addWidget(button('关闭', self.accept))
+        row.addWidget(button(tr('定位'), self.locate))
+        row.addWidget(button(tr('编辑备注'), self.edit))
+        row.addWidget(button(tr('删除所选'), self.delete))
+        row.addWidget(button(tr('关闭'), self.accept))
         layout.addLayout(row)
         self.items.itemDoubleClicked.connect(lambda _: self.locate())
         self.refresh()
@@ -498,7 +507,7 @@ class AnnotationDialog(QDialog):
         self.items.clear()
         for annotation in sorted(self.owner.record.get('annotations', []), key=lambda a: (a['page'], a['created'])):
             text = annotation.get('text', '').replace('\n', ' ')[:120]
-            item = QListWidgetItem(f"第 {annotation['page'] + 1} 页 · {KINDS[annotation['type']]}  {text}")
+            item = QListWidgetItem(tr('第 {arg0} 页 · {arg1}  {arg2}', arg0=annotation['page'] + 1, arg1=KINDS[annotation['type']], arg2=text))
             item.setData(Qt.ItemDataRole.UserRole, annotation['id'])
             item.setToolTip(annotation.get('text', ''))
             self.items.addItem(item)
@@ -525,7 +534,7 @@ class AnnotationDialog(QDialog):
             self.owner.annotation_action(item['page'], {'edit': item['id']})
             self.refresh()
         else:
-            QMessageBox.information(self, '编辑备注', '请选择一条文字备注。')
+            QMessageBox.information(self, tr('编辑备注'), tr('请选择一条文字备注。'))
 
     def delete(self):
         ids = {i.data(Qt.ItemDataRole.UserRole) for i in self.items.selectedItems()}
@@ -545,7 +554,7 @@ class OCRWorker(QThread):
         try:
             with fitz.open(self.path) as doc:
                 if doc.needs_pass and not doc.authenticate(self.password):
-                    raise ValueError('PDF 密码无效')
+                    raise ValueError(tr('PDF 密码无效'))
                 page = doc[self.page]
                 tp = page.get_textpage_ocr(language='eng', dpi=200, full=True, tessdata=str(TESSDATA))
                 self.ready.emit(page.get_text('words', textpage=tp), '')
@@ -557,21 +566,21 @@ class ExportDialog(QDialog):
     def __init__(self, parent, record):
         super().__init__(parent)
         self.record = record
-        self.setWindowTitle('导出云词本 · 正文')
+        self.setWindowTitle(tr('导出云词本 · 正文'))
         self.resize(690, 680)
         layout = QVBoxLayout(self)
-        title = QLabel('让今天读到的词，成为明天记住的词')
+        title = QLabel(tr('让今天读到的词，成为明天记住的词'))
         title.setStyleSheet('font-size: 19px; font-weight: 600; padding: 8px 0;')
         layout.addWidget(title)
         self.mode = QComboBox()
-        for text, value in [('章节模式 · 保留完整词组（推荐）', 'chapter'), ('按 PDF 页码分章节 · 保留完整词组', 'pages'),
-                            ('普通模式 · 由墨墨背单词提取单词和短语', 'plain'), ('原型模式 // · 由墨墨背单词还原单词原型', 'lemma')]:
+        for text, value in [(tr('章节模式 · 保留完整词组（推荐）'), 'chapter'), (tr('按 PDF 页码分章节 · 保留完整词组'), 'pages'),
+                            (tr('普通模式 · 由墨墨背单词提取单词和短语'), 'plain'), (tr('原型模式 // · 由墨墨背单词还原单词原型'), 'lemma')]:
             self.mode.addItem(text, value)
         layout.addWidget(self.mode)
         options = QHBoxLayout()
-        self.dedupe = QCheckBox('合并重复词条')
+        self.dedupe = QCheckBox(tr('合并重复词条'))
         self.dedupe.setChecked(True)
-        self.lower = QCheckBox('全部转为小写')
+        self.lower = QCheckBox(tr('全部转为小写'))
         options.addWidget(self.dedupe)
         options.addWidget(self.lower)
         options.addStretch()
@@ -585,11 +594,11 @@ class ExportDialog(QDialog):
         self.count = muted('')
         layout.addWidget(self.count)
         row = QHBoxLayout()
-        row.addWidget(button('复制正文', self.copy))
-        row.addWidget(button('保存 TXT', self.save, True))
-        row.addWidget(button('关闭', self.accept))
+        row.addWidget(button(tr('复制正文'), self.copy))
+        row.addWidget(button(tr('保存 TXT'), self.save, True))
+        row.addWidget(button(tr('关闭'), self.accept))
         layout.addLayout(row)
-        layout.addWidget(muted('把正文粘贴到墨墨背单词的云词本正文输入框。TXT 不包含翻译、编号或页码说明。'))
+        layout.addWidget(muted(tr('把正文粘贴到墨墨背单词的云词本正文输入框。TXT 不包含翻译、编号或页码说明。')))
         for signal in (self.mode.currentIndexChanged, self.dedupe.toggled, self.lower.toggled):
             signal.connect(self.refresh)
         self.refresh()
@@ -598,65 +607,65 @@ class ExportDialog(QDialog):
         body = export_body(self.record, self.mode.currentData(), self.lower.isChecked(), self.dedupe.isChecked())
         self.preview.setPlainText(body)
         n = sum(bool(line) and not line.startswith(('#', '//')) for line in body.splitlines())
-        self.count.setText(f'{n} 个词条 · UTF-8 文本 · 按 PDF 阅读位置排序')
-        self.note.setText('章节模式：每行一个词条，词组不拆分，保留大小写。' if self.mode.currentData() in ('chapter', 'pages')
-                          else '此模式会由墨墨背单词提取短语中的单词，且不区分首字母大小写。原型还原由墨墨背单词完成。')
+        self.count.setText(tr('{arg0} 个词条 · UTF-8 文本 · 按 PDF 阅读位置排序', arg0=n))
+        self.note.setText(tr('章节模式：每行一个词条，词组不拆分，保留大小写。') if self.mode.currentData() in ('chapter', 'pages')
+                          else tr('此模式会由墨墨背单词提取短语中的单词，且不区分首字母大小写。原型还原由墨墨背单词完成。'))
 
     def copy(self):
         QApplication.clipboard().setText(self.preview.toPlainText())
-        self.count.setText('已复制，可以粘贴到墨墨背单词云词本。')
+        self.count.setText(tr('已复制，可以粘贴到墨墨背单词云词本。'))
 
     def save(self):
-        path, _ = QFileDialog.getSaveFileName(self, '保存云词本正文', str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_云词本.txt')), '文本文件 (*.txt)')
+        path, _ = QFileDialog.getSaveFileName(self, tr('保存云词本正文'), str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + tr('_云词本.txt'))), tr('文本文件 (*.txt)'))
         if path:
             try:
                 Path(path).write_text(self.preview.toPlainText(), encoding='utf-8')
-                self.count.setText('已保存：' + path)
+                self.count.setText(tr('已保存：') + path)
             except OSError as exc:
-                QMessageBox.critical(self, '保存失败', str(exc))
+                QMessageBox.critical(self, tr('保存失败'), str(exc))
 
 
 def safe_name(title):
-    return ''.join('_' if c in '<>:"/\\|?*' else c for c in title).strip(' .')[:120] or '词本'
+    return ''.join('_' if c in '<>:"/\\|?*' else c for c in title).strip(' .')[:120] or tr('词本')
 
 
 class PersonalDefinitionDialog(QDialog):
     def __init__(self, owner, term):
         super().__init__(owner)
         self.owner = owner
-        self.setWindowTitle('编辑 / 补充个人释义')
+        self.setWindowTitle(tr('编辑 / 补充个人释义'))
         self.resize(640, 490)
         layout = QVBoxLayout(self)
-        layout.addWidget(muted('保存到本机个人词典，所有 PDF 共用；查词和单词释义表会优先使用个人释义。'))
+        layout.addWidget(muted(tr('保存到本机个人词典，所有 PDF 共用；查词和单词释义表会优先使用个人释义。')))
         self.term = QLineEdit(term)
         self.term.setReadOnly(True)
-        layout.addWidget(QLabel('英文单词 / 词组'))
+        layout.addWidget(QLabel(tr('英文单词 / 词组')))
         layout.addWidget(self.term)
         result = owner.dictionary.lookup(term)
         entry = result.get('entry') or {}
         self.phonetic = QLineEdit(entry.get('phonetic', ''))
-        self.phonetic.setPlaceholderText('音标（可选，不需要时留空）')
+        self.phonetic.setPlaceholderText(tr('音标（可选，不需要时留空）'))
         layout.addWidget(self.phonetic)
-        layout.addWidget(QLabel('释义 / 阅读说明'))
+        layout.addWidget(QLabel(tr('释义 / 阅读说明')))
         self.meaning = QPlainTextEdit()
         initial = meaning_text(result) if (result.get('entry') or result.get('bases') or result.get('parts')) else ''
         self.meaning.setPlainText(initial)
-        self.meaning.setPlaceholderText('例如：捕食者与猎物的关系；可输入中文、英文和多行说明。')
+        self.meaning.setPlaceholderText(tr('例如：捕食者与猎物的关系；可输入中文、英文和多行说明。'))
         layout.addWidget(self.meaning, 1)
         self.message = QLabel()
         self.message.setStyleSheet('color: #b64c4c;')
         layout.addWidget(self.message)
         row = QHBoxLayout()
         row.addStretch()
-        row.addWidget(button('取消', self.reject))
-        self.save_button = button('保存个人释义', self.save, True)
+        row.addWidget(button(tr('取消'), self.reject))
+        self.save_button = button(tr('保存个人释义'), self.save, True)
         row.addWidget(self.save_button)
         layout.addLayout(row)
 
     def save(self):
         text = self.meaning.toPlainText().strip()
         if not text:
-            self.message.setText('请填写释义后保存；取消可以保留原来的内容。')
+            self.message.setText(tr('请填写释义后保存；取消可以保留原来的内容。'))
             return
         if self.owner.save_personal_definition(self.term.text(), text, self.phonetic.text()):
             self.accept()
@@ -670,23 +679,23 @@ class VocabularyExportDialog(QDialog):
         self.selected_ids = ({item.data(Qt.ItemDataRole.UserRole) for item in owner.mark_list.selectedItems()}
                              if record is None else set())
         self.edits = {}
-        self.setWindowTitle('导出单词释义表 PDF')
+        self.setWindowTitle(tr('导出单词释义表 PDF'))
         self.resize(860, 670)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel('左列英文词条，右列中文释义 · A4 打印表格'))
-        layout.addWidget(muted('释义来自离线词典；双击右列或点击「编辑释义」可调整本次导出的内容。'))
+        layout.addWidget(QLabel(tr('左列英文词条，右列中文释义 · A4 打印表格')))
+        layout.addWidget(muted(tr('释义来自离线词典；双击右列或点击「编辑释义」可调整本次导出的内容。')))
         options = QHBoxLayout()
         self.scope = QComboBox()
-        self.scope.addItem('所选文件全部标记' if record is not None else '当前 PDF 全部标记', None)
+        self.scope.addItem(tr('所选文件全部标记') if record is not None else tr('当前 PDF 全部标记'), None)
         if self.selected_ids:
-            self.scope.addItem(f'仅导出选中的 {len(self.selected_ids)} 条标记', 'selected')
+            self.scope.addItem(tr('仅导出选中的 {arg0} 条标记', arg0=len(self.selected_ids)), 'selected')
         options.addWidget(self.scope, 1)
-        self.dedupe = QCheckBox('合并相同拼写的词条')
+        self.dedupe = QCheckBox(tr('合并相同拼写的词条'))
         self.dedupe.setChecked(dedupe)
         options.addWidget(self.dedupe)
         layout.addLayout(options)
         self.table = QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(['英文单词 / 词组', '中文释义'])
+        self.table.setHorizontalHeaderLabels([tr('英文单词 / 词组'), tr('中文释义')])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setWordWrap(True)
@@ -697,13 +706,13 @@ class VocabularyExportDialog(QDialog):
         layout.addWidget(self.table, 1)
         self.count = muted('')
         layout.addWidget(self.count)
-        layout.addWidget(muted('保留词组和大小写；未收录词组会明确标注逐词释义。这里的修改不会改变 PDF 标记或词典。'))
+        layout.addWidget(muted(tr('保留词组和大小写；未收录词组会明确标注逐词释义。这里的修改不会改变 PDF 标记或词典。')))
         row = QHBoxLayout()
-        row.addWidget(button('编辑释义', self.edit_meaning))
-        row.addWidget(button('恢复词典释义', self.restore_meaning))
+        row.addWidget(button(tr('编辑释义'), self.edit_meaning))
+        row.addWidget(button(tr('恢复词典释义'), self.restore_meaning))
         row.addStretch()
-        row.addWidget(button('关闭', self.reject))
-        row.addWidget(button('导出 PDF', self.save, True))
+        row.addWidget(button(tr('关闭'), self.reject))
+        row.addWidget(button(tr('导出 PDF'), self.save, True))
         layout.addLayout(row)
         self.scope.currentIndexChanged.connect(self.refresh)
         self.dedupe.toggled.connect(self.refresh)
@@ -725,15 +734,15 @@ class VocabularyExportDialog(QDialog):
         # preview; PDF pagination preserves their complete text.
         for row in range(self.table.rowCount()):
             self.table.setRowHeight(row, min(160, max(44, self.table.rowHeight(row))))
-        self.count.setText(f'{len(self.rows)} 个词条 · 释义自动换行，表头在每页重复')
+        self.count.setText(tr('{arg0} 个词条 · 释义自动换行，表头在每页重复', arg0=len(self.rows)))
 
     def edit_meaning(self):
         row = self.table.currentRow()
         if row < 0:
-            self.count.setText('请先选择一个词条。')
+            self.count.setText(tr('请先选择一个词条。'))
             return
         term = self.table.item(row, 0).text()
-        meaning, ok = QInputDialog.getMultiLineText(self, '编辑本次导出的释义', term,
+        meaning, ok = QInputDialog.getMultiLineText(self, tr('编辑本次导出的释义'), term,
                                                   self.table.item(row, 1).text())
         if ok:
             self.edits[term] = meaning
@@ -753,8 +762,8 @@ class VocabularyExportDialog(QDialog):
 
     def save(self):
         (APP_ROOT / 'exports').mkdir(exist_ok=True)
-        path, _ = QFileDialog.getSaveFileName(self, '保存单词释义表 PDF',
-            str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_单词释义表.pdf')), 'PDF (*.pdf)')
+        path, _ = QFileDialog.getSaveFileName(self, tr('保存单词释义表 PDF'),
+            str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + tr('_单词释义表.pdf'))), 'PDF (*.pdf)')
         if not path:
             return
         try:
@@ -765,10 +774,10 @@ class VocabularyExportDialog(QDialog):
                 result = export_vocabulary_pdf(path, self.record['title'], self.export_rows())
             finally:
                 QApplication.restoreOverrideCursor()
-            self.count.setText(f"已保存：{result['terms']} 个词条，{result['pages']} 页 · {path}")
-            self.owner.statusBar().showMessage('已导出单词释义表：' + path, 12000)
+            self.count.setText(tr('已保存：{arg0} 个词条，{arg1} 页 · {arg2}', arg0=result['terms'], arg1=result['pages'], arg2=path))
+            self.owner.statusBar().showMessage(tr('已导出单词释义表：') + path, 12000)
         except Exception as exc:
-            QMessageBox.critical(self, '表格导出失败', str(exc))
+            QMessageBox.critical(self, tr('表格导出失败'), str(exc))
 
 
 class MergeExportDialog(QDialog):
@@ -776,19 +785,19 @@ class MergeExportDialog(QDialog):
         super().__init__(owner)
         self.owner = owner
         self.records = copy.deepcopy(owner.lib.state['documents'])
-        self.setWindowTitle('合并导出词本 · 多个 PDF')
+        self.setWindowTitle(tr('合并导出词本 · 多个 PDF'))
         self.resize(950, 680)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel('勾选文档，将收录的单词和词组合并为一个词本'))
+        layout.addWidget(QLabel(tr('勾选文档，将收录的单词和词组合并为一个词本')))
         split = QSplitter()
         left, right = QWidget(), QWidget()
         ll, rl = QVBoxLayout(left), QVBoxLayout(right)
         ll.setContentsMargins(0, 0, 8, 0)
         rl.setContentsMargins(8, 0, 0, 0)
-        ll.addWidget(QLabel('选择 PDF'))
+        ll.addWidget(QLabel(tr('选择 PDF')))
         self.files = QListWidget()
         for index, record in enumerate(self.records):
-            item = QListWidgetItem(f"{record['title']}\n{len(record['marks'])} 个标记")
+            item = QListWidgetItem(tr('{arg0}\n{arg1} 个标记', arg0=record['title'], arg1=len(record['marks'])))
             item.setToolTip(record['title'])
             item.setData(Qt.ItemDataRole.UserRole, index)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
@@ -796,29 +805,29 @@ class MergeExportDialog(QDialog):
                                and record['id'] == owner.record['id'] else Qt.CheckState.Unchecked)
             if not record['marks']:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-                item.setToolTip('此文档尚未收录词条。')
+                item.setToolTip(tr('此文档尚未收录词条。'))
             self.files.addItem(item)
         ll.addWidget(self.files, 1)
         row = QHBoxLayout()
-        row.addWidget(button('全选', lambda: self.check_all(True)))
-        row.addWidget(button('取消全选', lambda: self.check_all(False)))
+        row.addWidget(button(tr('全选'), lambda: self.check_all(True)))
+        row.addWidget(button(tr('取消全选'), lambda: self.check_all(False)))
         ll.addLayout(row)
-        self.title_edit = QLineEdit('合并词本')
+        self.title_edit = QLineEdit(tr('合并词本'))
         self.title_edit.setMaxLength(120)
-        self.title_edit.setPlaceholderText('词本名称')
+        self.title_edit.setPlaceholderText(tr('词本名称'))
         rl.addWidget(self.title_edit)
         self.mode = QComboBox()
-        for label, value in [('按文件分章节 · 保留完整词组（推荐）', 'documents'),
-                             ('合并为一个章节 · 保留完整词组', 'chapter'),
-                             ('按文件及页码分章节 · 保留完整词组', 'pages'),
-                             ('普通模式 · 由墨墨背单词提取单词和短语', 'plain'),
-                             ('原型模式 // · 由墨墨背单词还原原型', 'lemma')]:
+        for label, value in [(tr('按文件分章节 · 保留完整词组（推荐）'), 'documents'),
+                             (tr('合并为一个章节 · 保留完整词组'), 'chapter'),
+                             (tr('按文件及页码分章节 · 保留完整词组'), 'pages'),
+                             (tr('普通模式 · 由墨墨背单词提取单词和短语'), 'plain'),
+                             (tr('原型模式 // · 由墨墨背单词还原原型'), 'lemma')]:
             self.mode.addItem(label, value)
         rl.addWidget(self.mode)
         options = QHBoxLayout()
-        self.dedupe = QCheckBox('跨文件合并重复词条')
+        self.dedupe = QCheckBox(tr('跨文件合并重复词条'))
         self.dedupe.setChecked(True)
-        self.lower = QCheckBox('全部转为小写')
+        self.lower = QCheckBox(tr('全部转为小写'))
         options.addWidget(self.dedupe)
         options.addWidget(self.lower)
         rl.addLayout(options)
@@ -828,21 +837,20 @@ class MergeExportDialog(QDialog):
         rl.addWidget(self.preview, 1)
         self.count = muted('')
         rl.addWidget(self.count)
-        rl.addWidget(muted('按文档列表顺序、各 PDF 阅读位置排列；默认保留大小写和词组。\n'
-                          '章节格式用于 TXT；释义 PDF 为合并后的双列表格，可另行编辑释义。'))
+        rl.addWidget(muted(tr('按文档列表顺序、各 PDF 阅读位置排列；默认保留大小写和词组。\n章节格式用于 TXT；释义 PDF 为合并后的双列表格，可另行编辑释义。')))
         split.addWidget(left)
         split.addWidget(right)
         split.setSizes([300, 620])
         split.setStretchFactor(1, 1)
         layout.addWidget(split, 1)
         actions = QHBoxLayout()
-        self.copy_button = button('复制 TXT 正文', self.copy)
-        self.save_button = button('导出合并 TXT', self.save, True)
-        self.pdf_button = button('预览 / 导出合并释义 PDF', self.export_pdf)
+        self.copy_button = button(tr('复制 TXT 正文'), self.copy)
+        self.save_button = button(tr('导出合并 TXT'), self.save, True)
+        self.pdf_button = button(tr('预览 / 导出合并释义 PDF'), self.export_pdf)
         for widget in (self.copy_button, self.save_button, self.pdf_button):
             actions.addWidget(widget)
         actions.addStretch()
-        actions.addWidget(button('关闭', self.reject))
+        actions.addWidget(button(tr('关闭'), self.reject))
         layout.addLayout(actions)
         self.files.itemChanged.connect(self.refresh)
         self.mode.currentIndexChanged.connect(self.refresh)
@@ -874,7 +882,7 @@ class MergeExportDialog(QDialog):
         self.preview.setPlainText(body)
         count = sum(bool(line) and not line.startswith(('#', '//')) for line in body.splitlines())
         total = sum(len(record['marks']) for record in records)
-        self.count.setText(f'已选 {len(records)} 个文件 · {total} 个标记 → {count} 个导出词条')
+        self.count.setText(tr('已选 {arg0} 个文件 · {arg1} 个标记 → {arg2} 个导出词条', arg0=len(records), arg1=total, arg2=count))
         for widget in (self.copy_button, self.save_button, self.pdf_button):
             widget.setEnabled(bool(count))
         self.pdf_button.setEnabled(bool(count) and self.owner.dictionary.ready)
@@ -882,23 +890,23 @@ class MergeExportDialog(QDialog):
     def copy(self):
         if self.preview.toPlainText():
             QApplication.clipboard().setText(self.preview.toPlainText())
-            self.count.setText('已复制合并词本，可粘贴到云词本正文。')
+            self.count.setText(tr('已复制合并词本，可粘贴到云词本正文。'))
 
     def save(self):
         body = self.preview.toPlainText()
         if not body:
             return
         (APP_ROOT / 'exports').mkdir(exist_ok=True)
-        path, _ = QFileDialog.getSaveFileName(self, '保存合并词本 TXT',
-            str(APP_ROOT / 'exports' / (safe_name(self.title_edit.text()) + '_合并词本.txt')), '文本文件 (*.txt)')
+        path, _ = QFileDialog.getSaveFileName(self, tr('保存合并词本 TXT'),
+            str(APP_ROOT / 'exports' / (safe_name(self.title_edit.text()) + tr('_合并词本.txt'))), tr('文本文件 (*.txt)'))
         if path:
             try:
                 protect_export_path(path, self.owner.lib.root, [r['id'] for r in self.selected_records()])
                 write_export_text(path, body)
-                self.count.setText('已保存：' + path)
-                self.owner.statusBar().showMessage('已导出合并词本：' + path, 12000)
+                self.count.setText(tr('已保存：') + path)
+                self.owner.statusBar().showMessage(tr('已导出合并词本：') + path, 12000)
             except Exception as exc:
-                QMessageBox.critical(self, '合并导出失败', str(exc))
+                QMessageBox.critical(self, tr('合并导出失败'), str(exc))
 
     def export_pdf(self):
         records = self.selected_records()
@@ -908,7 +916,7 @@ class MergeExportDialog(QDialog):
         try:
             VocabularyExportDialog(self.owner, record, self.dedupe.isChecked()).exec()
         except Exception as exc:
-            QMessageBox.critical(self, '无法准备合并释义表', str(exc))
+            QMessageBox.critical(self, tr('无法准备合并释义表'), str(exc))
 
 
 class ReadingExportWorker(QThread):
@@ -935,7 +943,7 @@ class ReadingExportWorker(QThread):
                     message = messages.get(timeout=.1)
                 except queue.Empty:
                     if not process.is_alive():
-                        raise RuntimeError('导出进程意外结束，请保留原 PDF 后重试。')
+                        raise RuntimeError(tr('导出进程意外结束，请保留原 PDF 后重试。'))
                     continue
                 if message[0] == 'progress':
                     self.progress.emit(*message[1:])
@@ -957,35 +965,35 @@ class ReadingExportDialog(QDialog):
     def __init__(self, owner):
         super().__init__(owner)
         self.owner = owner
-        self.setWindowTitle('导出精读 PDF')
+        self.setWindowTitle(tr('导出精读 PDF'))
         self.setMinimumWidth(450)
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel('在文字行之间加入留白，方便打印后手写笔记。'))
-        layout.addWidget(muted('保留原文字体与图像，自动分页到 A4，横竖方向随原页调整。'))
+        layout.addWidget(QLabel(tr('在文字行之间加入留白，方便打印后手写笔记。')))
+        layout.addWidget(muted(tr('保留原文字体与图像，自动分页到 A4，横竖方向随原页调整。')))
         scope_row = QHBoxLayout()
-        scope_row.addWidget(QLabel('导出范围'))
+        scope_row.addWidget(QLabel(tr('导出范围')))
         self.scope = QComboBox()
-        self.scope.addItems(['全部页', '当前页', '指定页码'])
+        self.scope.addItems([tr('全部页'), tr('当前页'), tr('指定页码')])
         scope_row.addWidget(self.scope, 1)
         layout.addLayout(scope_row)
         self.range_edit = QLineEdit()
-        self.range_edit.setPlaceholderText(f'例：1-3,5（原 PDF 共 {len(owner.doc)} 页）')
+        self.range_edit.setPlaceholderText(tr('例：1-3,5（原 PDF 共 {arg0} 页）', arg0=len(owner.doc)))
         self.range_edit.setVisible(False)
         self.scope.currentIndexChanged.connect(lambda n: self.range_edit.setVisible(n == 2))
         layout.addWidget(self.range_edit)
         gap_row = QHBoxLayout()
-        gap_row.addWidget(QLabel('每行后留白'))
+        gap_row.addWidget(QLabel(tr('每行后留白')))
         self.gap = QComboBox()
-        self.gap.addItems(['1 行空白', '2 行空白'])
+        self.gap.addItems([tr('1 行空白'), tr('2 行空白')])
         gap_row.addWidget(self.gap, 1)
         layout.addLayout(gap_row)
-        self.highlights = QCheckBox('加入已收录单词的青绿加粗与下划线')
+        self.highlights = QCheckBox(tr('加入已收录单词的青绿加粗与下划线'))
         layout.addWidget(self.highlights)
-        layout.addWidget(muted('扫描页会离线识别行位置。复杂表格和图片区域会尽量保持完整；识别不到行时保留原页。'))
+        layout.addWidget(muted(tr('扫描页会离线识别行位置。复杂表格和图片区域会尽量保持完整；识别不到行时保留原页。')))
         actions = QHBoxLayout()
         actions.addStretch()
-        actions.addWidget(button('取消', self.reject))
-        actions.addWidget(button('选择保存位置', self.accept, True))
+        actions.addWidget(button(tr('取消'), self.reject))
+        actions.addWidget(button(tr('选择保存位置'), self.accept, True))
         layout.addLayout(actions)
 
     def selected_pages(self):
@@ -999,15 +1007,16 @@ class ReadingExportDialog(QDialog):
         try:
             self.selected_pages()
         except ValueError as exc:
-            QMessageBox.warning(self, '请检查页码', str(exc))
+            QMessageBox.warning(self, tr('请检查页码'), str(exc))
             return
         super().accept()
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, root=APP_ROOT / 'data', reopen=True):
+    def __init__(self, root=APP_ROOT / 'data', reopen=True, language=None):
         super().__init__()
         self.lib = Library(root)
+        set_language(language or load_language(self.lib.state), QApplication.instance())
         self.doc = self.record = None
         self.password = ''
         self.page_no = 0
@@ -1024,7 +1033,7 @@ class MainWindow(QMainWindow):
         self.dictionary_timer = QTimer(self)
         self.dictionary_timer.setSingleShot(True)
         self.dictionary_timer.timeout.connect(lambda: self.lookup_term(self.dictionary_pending))
-        self.setWindowTitle(APP_NAME + ' · 读一页，记一点')
+        self.setWindowTitle(APP_NAME + tr(' · 读一页，记一点'))
         self.setMinimumSize(1040, 700)
         self.resize(1480, 920)
         if (ASSETS / 'icon.ico').exists():
@@ -1037,36 +1046,38 @@ class MainWindow(QMainWindow):
         brand = QLabel(APP_NAME)
         brand.setObjectName('title')
         header.addWidget(brand)
-        header.addWidget(muted('XT · 精读与积累'))
+        header.addWidget(muted(tr('XT · 精读与积累')))
         header.addStretch()
-        header.addWidget(button('设置', self.shortcut_settings))
-        header.addWidget(button('使用帮助', self.help))
-        header.addWidget(button('导入 PDF', self.import_dialog, True))
+        header.addWidget(button(tr('设置'), self.shortcut_settings))
+        header.addWidget(button(tr('作者与致谢'), self.about))
+        header.addWidget(button(tr('使用帮助'), self.help))
+        header.addWidget(button(tr('导入 PDF'), self.import_dialog, True))
         outer.addLayout(header)
         splitter = QSplitter()
         outer.addWidget(splitter, 1)
         left = QWidget()
+        self.library_panel = left
         ll = QVBoxLayout(left)
         ll.setContentsMargins(0, 8, 8, 0)
-        ll.addWidget(QLabel('我的文档'))
+        ll.addWidget(QLabel(tr('我的文档')))
         self.doc_filter = QLineEdit()
-        self.doc_filter.setPlaceholderText('搜索文档名')
+        self.doc_filter.setPlaceholderText(tr('搜索文档名'))
         ll.addWidget(self.doc_filter)
         self.library_list = QListWidget()
         ll.addWidget(self.library_list, 1)
         left.setMinimumWidth(190)
         lr = QHBoxLayout()
-        lr.addWidget(button('重命名', self.rename_doc))
-        lr.addWidget(button('移除', self.remove_doc))
+        lr.addWidget(button(tr('重命名'), self.rename_doc))
+        lr.addWidget(button(tr('移除'), self.remove_doc))
         ll.addLayout(lr)
-        self.merge_export_button = button('合并导出词本 · 多文件', self.export_merged)
+        self.merge_export_button = button(tr('合并导出词本 · 多文件'), self.export_merged)
         ll.addWidget(self.merge_export_button)
-        ll.addWidget(muted('PDF 副本和标记保存在本机。\n原始 PDF 不会被改写。'))
+        ll.addWidget(muted(tr('PDF 副本和标记保存在本机。\n原始 PDF 不会被改写。')))
         splitter.addWidget(left)
         center = QWidget()
         cl = QVBoxLayout(center)
         cl.setContentsMargins(4, 8, 4, 0)
-        self.doc_title = QLabel('开始一段新的阅读')
+        self.doc_title = QLabel(tr('开始一段新的阅读'))
         self.doc_title.setStyleSheet('font-size: 17px; font-weight: 600;')
         cl.addWidget(self.doc_title)
         toolbar = QHBoxLayout()
@@ -1083,25 +1094,25 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.next)
         toolbar.addStretch()
         self.layout_box = QComboBox()
-        self.layout_box.addItem('单页连续', 1)
-        self.layout_box.addItem('双页并排', 2)
-        self.layout_box.setToolTip('像 Word 一样连续滚动；双页模式每行并排显示两页。')
+        self.layout_box.addItem(tr('单页连续'), 1)
+        self.layout_box.addItem(tr('双页并排'), 2)
+        self.layout_box.setToolTip(tr('像 Word 一样连续滚动；双页模式每行并排显示两页。'))
         toolbar.addWidget(self.layout_box)
         self.zoom_box = QComboBox()
-        self.zoom_box.addItems(['适合宽度', '75%', '100%', '125%', '150%', '200%'])
+        self.zoom_box.addItems([tr('适合宽度'), '75%', '100%', '125%', '150%', '200%'])
         toolbar.addWidget(self.zoom_box)
-        self.ocr_button = button('识别当前页', self.ocr)
-        self.ocr_button.setToolTip('扫描页使用离线英文 OCR；识别完成后请核对词条。')
+        self.ocr_button = button(tr('识别当前页'), self.ocr)
+        self.ocr_button.setToolTip(tr('扫描页使用离线英文 OCR；识别完成后请核对词条。'))
         toolbar.addWidget(self.ocr_button)
         cl.addLayout(toolbar)
         searchrow = QHBoxLayout()
         self.pdf_search = QLineEdit()
-        self.pdf_search.setPlaceholderText('查找 PDF 中的英文（Enter 查找下一个）')
+        self.pdf_search.setPlaceholderText(tr('查找 PDF 中的英文（Enter 查找下一个）'))
         searchrow.addWidget(self.pdf_search)
-        searchrow.addWidget(button('查找', self.search_pdf))
+        searchrow.addWidget(button(tr('查找'), self.search_pdf))
         cl.addLayout(searchrow)
         self.annotation_tool = AnnotationToolBar(self.tool_shortcuts)
-        self.annotation_tool.setToolTip('选词模式双击收录；批注模式拖动做记号，备注模式单击添加。Esc 返回选词。')
+        self.annotation_tool.setToolTip(tr('选词模式双击收录；批注模式拖动做记号，备注模式单击添加。Esc 返回选词。'))
         self.annotation_strip = QWidget()
         annotation_row = QHBoxLayout(self.annotation_strip)
         annotation_row.setContentsMargins(0, 0, 0, 0)
@@ -1109,8 +1120,8 @@ class MainWindow(QMainWindow):
         self.annotation_tool.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         annotation_row.addWidget(self.annotation_tool)
         self.annotation_color = QComboBox()
-        for label, color in [('金黄', '#f4c542'), ('珊瑚红', '#e87070'), ('湖蓝', '#4799de'),
-                              ('紫色', '#a077d8'), ('绿色', '#46a886')]:
+        for label, color in [(tr('金黄'), '#f4c542'), (tr('珊瑚红'), '#e87070'), (tr('湖蓝'), '#4799de'),
+                              (tr('紫色'), '#a077d8'), (tr('绿色'), '#46a886')]:
             self.annotation_color.addItem(label, color)
             self.annotation_color.setItemData(self.annotation_color.count() - 1, QColor(color), Qt.ItemDataRole.DecorationRole)
         annotation_row.addWidget(self.annotation_color)
@@ -1118,13 +1129,13 @@ class MainWindow(QMainWindow):
         self.annotation_width.setRange(1, 8)
         self.annotation_width.setValue(2)
         self.annotation_width.setSuffix(' pt')
-        self.annotation_width.setToolTip('画笔、框线、下划线的粗细，随 PDF 缩放')
+        self.annotation_width.setToolTip(tr('画笔、框线、下划线的粗细，随 PDF 缩放'))
         annotation_row.addWidget(self.annotation_width)
-        self.undo_annotation_button = button('撤销', self.undo_annotation)
-        self.redo_annotation_button = button('重做', self.redo_annotation)
+        self.undo_annotation_button = button(tr('撤销'), self.undo_annotation)
+        self.redo_annotation_button = button(tr('重做'), self.redo_annotation)
         annotation_row.addWidget(self.undo_annotation_button)
         annotation_row.addWidget(self.redo_annotation_button)
-        self.manage_annotation_button = button('批注 · 0', self.manage_annotations)
+        self.manage_annotation_button = button(tr('批注 · 0'), self.manage_annotations)
         annotation_row.addWidget(self.manage_annotation_button)
         annotation_row.addStretch()
         self.annotation_navigation = QScrollArea()
@@ -1143,33 +1154,34 @@ class MainWindow(QMainWindow):
         self.scroll.setWidget(self.reader)
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         cl.addWidget(self.scroll, 1)
-        self.empty = QLabel('导入英文试卷或论文\n\n单击选择单词，拖动选择词组\n按 Enter 或点击「标记选词」收藏\n\n扫描 PDF 可先点击「识别当前页」')
+        self.empty = QLabel(tr('导入英文试卷或论文\n\n单击选择单词，拖动选择词组\n按 Enter 或点击「标记选词」收藏\n\n扫描 PDF 可先点击「识别当前页」'))
         self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty.setStyleSheet('font-size: 17px; color: #67838a; padding: 50px;')
         cl.addWidget(self.empty, 1)
         self.scroll.hide()
-        self.page_hint = muted('标记会自动保存；导出时词组保持在同一行。')
+        self.page_hint = muted(tr('标记会自动保存；导出时词组保持在同一行。'))
         cl.addWidget(self.page_hint)
         selectedrow = QHBoxLayout()
         self.term_edit = QLineEdit()
-        self.term_edit.setPlaceholderText('选词会显示在这里，也可以手动输入或修正')
+        self.term_edit.setPlaceholderText(tr('选词会显示在这里，也可以手动输入或修正'))
         selectedrow.addWidget(self.term_edit, 1)
-        self.add_button = button('标记选词 Enter', self.add_mark, True)
+        self.add_button = button(tr('标记选词 Enter'), self.add_mark, True)
         selectedrow.addWidget(self.add_button)
         cl.addLayout(selectedrow)
         splitter.addWidget(center)
         right = QWidget()
+        self.dictionary_panel = right
         rl = QVBoxLayout(right)
         rl.setContentsMargins(8, 8, 0, 0)
-        dictionary_title = QLabel('离线英汉词典')
+        dictionary_title = QLabel(tr('离线英汉词典'))
         dictionary_title.setStyleSheet('font-size: 15px; font-weight: 600; color: #087f73;')
         rl.addWidget(dictionary_title)
         dictionary_row = QHBoxLayout()
         self.dictionary_query = QLineEdit()
-        self.dictionary_query.setPlaceholderText('单词 / 词组（可手动查词）')
+        self.dictionary_query.setPlaceholderText(tr('单词 / 词组（可手动查词）'))
         self.dictionary_query.setMaxLength(240)
         dictionary_row.addWidget(self.dictionary_query, 1)
-        dictionary_row.addWidget(button('查词', lambda: self.lookup_term(self.dictionary_query.text())))
+        dictionary_row.addWidget(button(tr('查词'), lambda: self.lookup_term(self.dictionary_query.text())))
         rl.addLayout(dictionary_row)
         self.dictionary_view = QTextBrowser()
         self.dictionary_view.setOpenLinks(False)
@@ -1179,39 +1191,39 @@ class MainWindow(QMainWindow):
         self.dictionary_view.setHtml(render_lookup(self.dictionary.lookup('')))
         rl.addWidget(self.dictionary_view, 1)
         dictionary_actions = QHBoxLayout()
-        self.edit_definition_button = button('编辑 / 补充释义', self.edit_personal_definition)
-        self.reset_definition_button = button('恢复词典释义', self.reset_personal_definition)
+        self.edit_definition_button = button(tr('编辑 / 补充释义'), self.edit_personal_definition)
+        self.reset_definition_button = button(tr('恢复词典释义'), self.reset_personal_definition)
         dictionary_actions.addWidget(self.edit_definition_button)
         dictionary_actions.addWidget(self.reset_definition_button)
         rl.addLayout(dictionary_actions)
         self.dictionary_query.textChanged.connect(self.refresh_definition_controls)
         self.refresh_definition_controls()
-        self.mark_count = QLabel('本篇词本 · 0')
+        self.mark_count = QLabel(tr('本篇词本 · 0'))
         self.mark_count.setStyleSheet('font-size: 15px; font-weight: 600;')
         rl.addWidget(self.mark_count)
         self.mark_filter = QLineEdit()
-        self.mark_filter.setPlaceholderText('筛选已标记词条')
+        self.mark_filter.setPlaceholderText(tr('筛选已标记词条'))
         rl.addWidget(self.mark_filter)
         self.mark_list = QListWidget()
         self.mark_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         rl.addWidget(self.mark_list, 2)
         right.setMinimumWidth(300)
         row = QHBoxLayout()
-        row.addWidget(button('编辑词条', self.edit_mark))
-        row.addWidget(button('删除', self.delete_marks))
+        row.addWidget(button(tr('编辑词条'), self.edit_mark))
+        row.addWidget(button(tr('删除'), self.delete_marks))
         rl.addLayout(row)
-        rl.addWidget(button('一键导出云词本 TXT', self.quick_export, True))
-        rl.addWidget(button('预览 / 复制 / 导出设置', self.export_dialog))
-        rl.addWidget(button('导出收录与批注 PDF', self.export_pdf))
-        self.vocabulary_button = button('导出单词释义表 PDF', self.export_vocabulary)
+        rl.addWidget(button(tr('一键导出云词本 TXT'), self.quick_export, True))
+        rl.addWidget(button(tr('预览 / 复制 / 导出设置'), self.export_dialog))
+        rl.addWidget(button(tr('导出收录与批注 PDF'), self.export_pdf))
+        self.vocabulary_button = button(tr('导出单词释义表 PDF'), self.export_vocabulary)
         rl.addWidget(self.vocabulary_button)
-        self.reading_button = button('导出精读 PDF（留空行）', self.export_reading)
+        self.reading_button = button(tr('导出精读 PDF（留空行）'), self.export_reading)
         rl.addWidget(self.reading_button)
-        rl.addWidget(muted('双击词条返回所在页。\n导出默认合并同样拼写的词条。'))
+        rl.addWidget(muted(tr('双击词条返回所在页。\n导出默认合并同样拼写的词条。')))
         splitter.addWidget(right)
         splitter.setSizes([220, 900, 340])
         splitter.setStretchFactor(1, 1)
-        self.statusBar().showMessage('欢迎使用XT 阅迹')
+        self.statusBar().showMessage(tr('欢迎使用XT 阅迹'))
         self.doc_filter.textChanged.connect(self.refresh_library)
         self.library_list.itemClicked.connect(self.library_clicked)
         self.page_spin.valueChanged.connect(lambda v: self.go_page(v - 1))
@@ -1247,9 +1259,11 @@ class MainWindow(QMainWindow):
         self.position_timer.timeout.connect(self.persist)
         self.refresh_library()
         self.refresh_annotation_controls()
+        self.library_panel.setMinimumWidth(max(190, self.library_panel.layout().minimumSize().width()))
+        self.dictionary_panel.setMinimumWidth(max(300, self.dictionary_panel.layout().minimumSize().width()))
         QApplication.instance().installEventFilter(self)
         if self.lib.warning:
-            QTimer.singleShot(0, lambda: QMessageBox.warning(self, '词库恢复', self.lib.warning))
+            QTimer.singleShot(0, lambda: QMessageBox.warning(self, tr('词库恢复'), self.lib.warning))
         if reopen:
             last = next((d for d in self.lib.state['documents'] if d['id'] == self.lib.state['last']), None)
             if last:
@@ -1283,19 +1297,52 @@ class MainWindow(QMainWindow):
     def shortcut_settings(self):
         ShortcutSettingsDialog(self).exec()
 
+    def about(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(tr('作者声明与致谢'))
+        dialog.resize(740, 580)
+        layout = QVBoxLayout(dialog)
+        browser = QTextBrowser()
+        browser.setOpenExternalLinks(True)
+        browser.setHtml(statement_html())
+        layout.addWidget(browser)
+        layout.addWidget(button(tr('关闭'), dialog.accept))
+        dialog.exec()
+
     def save_tool_shortcuts(self, values):
+        return self.save_preferences(values)
+
+    def save_preferences(self, values, language=None):
         values = validated_shortcuts(values)
+        if language is not None and language not in dict(LANGUAGES):
+            raise ValueError('Unsupported interface language')
         previous = copy.deepcopy(self.lib.state.get('tool_shortcuts'))
+        previous_language = self.lib.state.get('language')
         self.lib.state['tool_shortcuts'] = values
+        if language is not None:
+            self.lib.state['language'] = language
         if not self.persist():
             if previous is None:
                 self.lib.state.pop('tool_shortcuts', None)
             else:
                 self.lib.state['tool_shortcuts'] = previous
+            if previous_language is None:
+                self.lib.state.pop('language', None)
+            else:
+                self.lib.state['language'] = previous_language
             return False
         self.tool_shortcuts = values
+        if language is not None:
+            set_language(language, QApplication.instance())
+            self.dictionary.lookup.cache_clear()
+            self.refresh_library()
+            self.refresh_marks()
+            self.refresh_annotation_controls()
+            self.lookup_term(self.dictionary_query.text())
+            self.library_panel.setMinimumWidth(max(190, self.library_panel.layout().minimumSize().width()))
+            self.dictionary_panel.setMinimumWidth(max(300, self.dictionary_panel.layout().minimumSize().width()))
         self.annotation_tool.set_shortcuts(values)
-        self.statusBar().showMessage('工具快捷键已保存，重新打开软件后仍有效。', 6000)
+        self.statusBar().showMessage(tr('设置已保存，重新打开软件后仍有效。'), 6000)
         return True
 
     def change_annotation_tool(self):
@@ -1305,13 +1352,13 @@ class MainWindow(QMainWindow):
         self.term_edit.clear()
         self.add_button.setEnabled(self.annotation_tool.currentData() == 'select')
         if self.annotation_tool.currentData() == 'erase':
-            self.statusBar().showMessage('单击删除普通批注；已收录词条在选词模式下双击取消。', 7000)
+            self.statusBar().showMessage(tr('单击删除普通批注；已收录词条在选词模式下双击取消。'), 7000)
 
     def refresh_annotation_controls(self):
         history = self.annotation_history.get(self.record['id'], ([], [])) if self.record else ([], [])
         self.undo_annotation_button.setEnabled(bool(history[0]))
         self.redo_annotation_button.setEnabled(bool(history[1]))
-        self.manage_annotation_button.setText('批注 · ' + str(len(self.record.get('annotations', [])) if self.record else 0))
+        self.manage_annotation_button.setText(tr('批注 · ') + str(len(self.record.get('annotations', [])) if self.record else 0))
         self.manage_annotation_button.setEnabled(self.record is not None)
 
     def commit_annotations(self, items, history=True):
@@ -1350,7 +1397,7 @@ class MainWindow(QMainWindow):
             item = dict(action, page=page_no, id=uuid.uuid4().hex,
                         created=datetime.now().isoformat(timespec='microseconds'))
         if item['type'] == 'note':
-            text, ok = QInputDialog.getMultiLineText(self, '文字备注', '写下你的阅读笔记（双击备注可以编辑）',
+            text, ok = QInputDialog.getMultiLineText(self, tr('文字备注'), tr('写下你的阅读笔记（双击备注可以编辑）'),
                                                     item.get('text', ''))
             if not ok or not text.strip():
                 return
@@ -1426,7 +1473,7 @@ class MainWindow(QMainWindow):
         try:
             term = validate_term(self.dictionary_query.text())
         except ValueError as exc:
-            QMessageBox.warning(self, '请选择英文词条', str(exc))
+            QMessageBox.warning(self, tr('请选择英文词条'), str(exc))
             return
         self.lookup_term(term)
         PersonalDefinitionDialog(self, term).exec()
@@ -1435,9 +1482,9 @@ class MainWindow(QMainWindow):
         try:
             term = validate_term(term)
             if not translation.strip():
-                raise ValueError('请填写释义后保存。')
+                raise ValueError(tr('请填写释义后保存。'))
         except ValueError as exc:
-            QMessageBox.warning(self, '无法保存个人释义', str(exc))
+            QMessageBox.warning(self, tr('无法保存个人释义'), str(exc))
             return False
         entries = dict(self.dictionary.overrides)
         entries[normalize(term)] = {'word': term, 'translation': translation.strip(),
@@ -1455,15 +1502,15 @@ class MainWindow(QMainWindow):
             return False
         self.dictionary.set_overrides(entries)
         self.lookup_term(term)
-        self.statusBar().showMessage('个人释义已保存，查词与单词释义表已更新：' + term, 6000)
+        self.statusBar().showMessage(tr('个人释义已保存，查词与单词释义表已更新：') + term, 6000)
         return True
 
     def reset_personal_definition(self):
         term = self.dictionary_query.text().strip()
         if not self.dictionary.personal_entry(term):
             return
-        choice = QMessageBox.question(self, '恢复词典释义',
-            f'删除「{term}」的个人释义并恢复内置词典内容？未收录词条恢复后将不再显示个人解释。',
+        choice = QMessageBox.question(self, tr('恢复词典释义'),
+            tr('删除「{arg0}」的个人释义并恢复内置词典内容？未收录词条恢复后将不再显示个人解释。', arg0=term),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if choice == QMessageBox.StandardButton.Yes:
             entries = dict(self.dictionary.overrides)
@@ -1473,10 +1520,10 @@ class MainWindow(QMainWindow):
     def persist(self):
         try:
             self.lib.save()
-            self.statusBar().showMessage('已自动保存到本机', 4000)
+            self.statusBar().showMessage(tr('已自动保存到本机'), 4000)
             return True
         except OSError as exc:
-            QMessageBox.critical(self, '未能保存', f'请检查磁盘权限或剩余空间。当前改动尚未保存。\n{exc}')
+            QMessageBox.critical(self, tr('未能保存'), tr('请检查磁盘权限或剩余空间。当前改动尚未保存。\n{arg0}', arg0=exc))
             return False
 
     def refresh_library(self):
@@ -1485,7 +1532,7 @@ class MainWindow(QMainWindow):
         for doc in self.lib.state['documents']:
             if query not in doc['title'].casefold():
                 continue
-            item = QListWidgetItem(f"{doc['title']}\n{len(doc['marks'])} 个标记")
+            item = QListWidgetItem(tr('{arg0}\n{arg1} 个标记', arg0=doc['title'], arg1=len(doc['marks'])))
             item.setData(Qt.ItemDataRole.UserRole, doc['id'])
             item.setToolTip(doc['title'])
             self.library_list.addItem(item)
@@ -1494,7 +1541,7 @@ class MainWindow(QMainWindow):
 
     def library_clicked(self, item):
         if self.worker and self.worker.isRunning():
-            self.statusBar().showMessage('正在识别当前页，请稍后切换文档。')
+            self.statusBar().showMessage(tr('正在识别当前页，请稍后切换文档。'))
             return
         rec = next(d for d in self.lib.state['documents'] if d['id'] == item.data(Qt.ItemDataRole.UserRole))
         self.open_record(rec)
@@ -1502,18 +1549,18 @@ class MainWindow(QMainWindow):
     def import_dialog(self):
         if self.worker and self.worker.isRunning():
             return
-        paths, _ = QFileDialog.getOpenFileNames(self, '导入英文 PDF', '', 'PDF 文件 (*.pdf)')
+        paths, _ = QFileDialog.getOpenFileNames(self, tr('导入英文 PDF'), '', tr('PDF 文件 (*.pdf)'))
         for path in paths:
             self.import_file(path)
 
     def unlock(self, doc):
         password = ''
         if doc.needs_pass:
-            password, ok = QInputDialog.getText(self, '加密 PDF', '请输入打开密码（不会保存到磁盘）', QLineEdit.EchoMode.Password)
+            password, ok = QInputDialog.getText(self, tr('加密 PDF'), tr('请输入打开密码（不会保存到磁盘）'), QLineEdit.EchoMode.Password)
             if not ok or not doc.authenticate(password):
                 doc.close()
                 if ok:
-                    QMessageBox.warning(self, '无法打开', '密码不正确。')
+                    QMessageBox.warning(self, tr('无法打开'), tr('密码不正确。'))
                 return None
         return password
 
@@ -1523,7 +1570,7 @@ class MainWindow(QMainWindow):
         try:
             with fitz.open(path) as check:
                 if not check.is_pdf or not len(check):
-                    raise ValueError('这不是有效的 PDF 文件。')
+                    raise ValueError(tr('这不是有效的 PDF 文件。'))
                 password = self.unlock(check)
                 if password is None:
                     return
@@ -1531,7 +1578,7 @@ class MainWindow(QMainWindow):
             self.refresh_library()
             self.open_record(rec, password)
         except Exception as exc:
-            QMessageBox.warning(self, '导入失败', str(exc))
+            QMessageBox.warning(self, tr('导入失败'), str(exc))
 
     def open_record(self, record, password=None):
         try:
@@ -1542,7 +1589,7 @@ class MainWindow(QMainWindow):
                     return
             elif doc.needs_pass and not doc.authenticate(password):
                 doc.close()
-                raise ValueError('密码无效')
+                raise ValueError(tr('密码无效'))
             if self.doc:
                 self.doc.close()
             self.doc, self.record, self.password = doc, record, password
@@ -1570,7 +1617,7 @@ class MainWindow(QMainWindow):
             self.refresh_library()
             self.persist()
         except Exception as exc:
-            QMessageBox.warning(self, '打开失败', str(exc))
+            QMessageBox.warning(self, tr('打开失败'), str(exc))
 
     def words_for_page(self, n):
         cached = self.record.get('ocr', {}).get(str(n))
@@ -1594,14 +1641,14 @@ class MainWindow(QMainWindow):
             self.update_page_info()
             self.reader.schedule_visible()
         except Exception as exc:
-            QMessageBox.warning(self, '页面显示失败', str(exc))
+            QMessageBox.warning(self, tr('页面显示失败'), str(exc))
 
     def update_page_info(self):
         self.prev.setEnabled(self.page_no > 0)
         self.next.setEnabled(self.page_no < len(self.doc) - 1)
-        self.page_hint.setText('本页没有可选择的文字，请点击「识别当前页」进行英文 OCR。' if not self.canvas.words else
-            '本页已使用英文 OCR，请核对识别结果。' if str(self.page_no) in self.record.get('ocr', {}) else
-            '双击标记 / 取消 · 拖动选词组 · Enter 标记 · 滚轮连续阅读')
+        self.page_hint.setText(tr('本页没有可选择的文字，请点击「识别当前页」进行英文 OCR。') if not self.canvas.words else
+            tr('本页已使用英文 OCR，请核对识别结果。') if str(self.page_no) in self.record.get('ocr', {}) else
+            tr('双击标记 / 取消 · 拖动选词组 · Enter 标记 · 滚轮连续阅读'))
 
     def set_active_page(self, n):
         if not self.doc or not 0 <= n < len(self.doc):
@@ -1638,7 +1685,7 @@ class MainWindow(QMainWindow):
                 self.canvas.selection = []
                 self.canvas.update()
                 self.term_edit.clear()
-                self.statusBar().showMessage('已取消标记并保存：' + mark['term'], 5000)
+                self.statusBar().showMessage(tr('已取消标记并保存：') + mark['term'], 5000)
         else:
             try:
                 term = validate_term(word[4])
@@ -1668,7 +1715,7 @@ class MainWindow(QMainWindow):
         self.persist()
 
     def change_zoom(self, text):
-        self.fit = text == '适合宽度'
+        self.fit = text == tr('适合宽度')
         if not self.fit:
             self.zoom = float(text.strip('%')) / 100
         self.render_page()
@@ -1696,19 +1743,19 @@ class MainWindow(QMainWindow):
             self.lookup_term(term)
             self.refresh_marks()
             self.refresh_library()
-            self.statusBar().showMessage(('已标记并保存：' if added else '已经标记过：') + term, 5000)
+            self.statusBar().showMessage((tr('已标记并保存：') if added else tr('已经标记过：')) + term, 5000)
         except (ValueError, OSError) as exc:
-            QMessageBox.warning(self, '未能标记', str(exc))
+            QMessageBox.warning(self, tr('未能标记'), str(exc))
 
     def refresh_marks(self):
         self.mark_list.clear()
         marks = self.record['marks'] if self.record else []
         query = self.mark_filter.text().casefold()
-        self.mark_count.setText(f'本篇词本 · {len(marks)} 个标记')
+        self.mark_count.setText(tr('本篇词本 · {arg0} 个标记', arg0=len(marks)))
         for mark in sorted(marks, key=lambda m: (m['page'], m.get('order', 0), m['created'])):
             if query not in mark['term'].casefold():
                 continue
-            item = QListWidgetItem(f"{mark['term']}\n第 {mark['page'] + 1} 页")
+            item = QListWidgetItem(tr('{arg0}\n第 {arg1} 页', arg0=mark['term'], arg1=mark['page'] + 1))
             item.setData(Qt.ItemDataRole.UserRole, mark['id'])
             item.setToolTip(mark['term'])
             item.setForeground(QColor(COLLECTED_COLOR))
@@ -1732,15 +1779,15 @@ class MainWindow(QMainWindow):
             self.term_edit.setText(mark['term'])
             r = self.canvas.screen_rect(mark['rects'][0])
             self.reader.ensure_rect(mark['page'], r)
-        self.statusBar().showMessage('已定位：' + mark['term'], 4000)
+        self.statusBar().showMessage(tr('已定位：') + mark['term'], 4000)
 
     def edit_mark(self):
         items = self.mark_list.selectedItems()
         if len(items) != 1:
-            self.statusBar().showMessage('请选择一个词条后编辑。', 4000)
+            self.statusBar().showMessage(tr('请选择一个词条后编辑。'), 4000)
             return
         mark = self.get_mark(items[0])
-        text, ok = QInputDialog.getText(self, '编辑词条', '修正英文单词或词组', text=mark['term'])
+        text, ok = QInputDialog.getText(self, tr('编辑词条'), tr('修正英文单词或词组'), text=mark['term'])
         if ok:
             try:
                 previous = mark['term']
@@ -1750,7 +1797,7 @@ class MainWindow(QMainWindow):
                 self.refresh_marks()
                 self.lookup_term(mark['term'])
             except ValueError as exc:
-                QMessageBox.warning(self, '词条不正确', str(exc))
+                QMessageBox.warning(self, tr('词条不正确'), str(exc))
 
     def delete_marks(self):
         ids = {i.data(Qt.ItemDataRole.UserRole) for i in self.mark_list.selectedItems()}
@@ -1773,7 +1820,7 @@ class MainWindow(QMainWindow):
 
     def has_marks(self):
         if not self.record or not self.record['marks']:
-            self.statusBar().showMessage('请先标记至少一个词条。', 5000)
+            self.statusBar().showMessage(tr('请先标记至少一个词条。'), 5000)
             return False
         return True
 
@@ -1781,13 +1828,13 @@ class MainWindow(QMainWindow):
         if not self.has_marks():
             return
         (APP_ROOT / 'exports').mkdir(exist_ok=True)
-        path, _ = QFileDialog.getSaveFileName(self, '一键导出云词本', str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_云词本.txt')), '文本文件 (*.txt)')
+        path, _ = QFileDialog.getSaveFileName(self, tr('一键导出云词本'), str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + tr('_云词本.txt'))), tr('文本文件 (*.txt)'))
         if path:
             try:
                 Path(path).write_text(export_body(self.record), encoding='utf-8')
-                self.statusBar().showMessage('已导出：' + path, 10000)
+                self.statusBar().showMessage(tr('已导出：') + path, 10000)
             except OSError as exc:
-                QMessageBox.critical(self, '导出失败', str(exc))
+                QMessageBox.critical(self, tr('导出失败'), str(exc))
 
     def export_dialog(self):
         if self.has_marks():
@@ -1796,7 +1843,7 @@ class MainWindow(QMainWindow):
 
     def export_merged(self):
         if not any(record['marks'] for record in self.lib.state['documents']):
-            self.statusBar().showMessage('请先在至少一个 PDF 中收录词条。', 5000)
+            self.statusBar().showMessage(tr('请先在至少一个 PDF 中收录词条。'), 5000)
             return
         MergeExportDialog(self).exec()
 
@@ -1804,60 +1851,61 @@ class MainWindow(QMainWindow):
         if not self.has_marks():
             return
         if not self.dictionary.ready:
-            QMessageBox.warning(self, '离线词典无法读取', self.dictionary.error)
+            QMessageBox.warning(self, tr('离线词典无法读取'), self.dictionary.error)
             return
         try:
             VocabularyExportDialog(self).exec()
         except Exception as exc:
-            QMessageBox.critical(self, '无法准备释义表', str(exc))
+            QMessageBox.critical(self, tr('无法准备释义表'), str(exc))
 
     def write_highlight_pdf(self, path):
         if Path(path).resolve().is_relative_to(self.lib.root.resolve()):
-            raise ValueError('不能将导出文件写入文档数据目录，请另选位置。')
+            raise ValueError(tr('不能将导出文件写入文档数据目录，请另选位置。'))
         return export_annotated_pdf(self.lib.pdf_path(self.record), path, self.record['marks'],
                                     self.record.get('annotations', []), self.password)
 
     def export_pdf(self):
         if not self.record or not (self.record['marks'] or self.record.get('annotations')):
-            self.statusBar().showMessage('请先收录词条或添加论文批注。', 5000)
+            self.statusBar().showMessage(tr('请先收录词条或添加论文批注。'), 5000)
             return
         (APP_ROOT / 'exports').mkdir(exist_ok=True)
-        path, _ = QFileDialog.getSaveFileName(self, '导出收录词条和论文批注', str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_批注.pdf')), 'PDF (*.pdf)')
+        path, _ = QFileDialog.getSaveFileName(self, tr('导出收录词条和论文批注'), str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + tr('_批注.pdf'))), 'PDF (*.pdf)')
         if path:
             try:
                 if Path(path).resolve() == self.lib.pdf_path(self.record).resolve():
-                    raise ValueError('请选择另一个导出位置，不能覆盖词库中的 PDF。')
+                    raise ValueError(tr('请选择另一个导出位置，不能覆盖词库中的 PDF。'))
                 self.write_highlight_pdf(path)
-                self.statusBar().showMessage('已导出收录与批注 PDF：' + path, 10000)
+                self.statusBar().showMessage(tr('已导出收录与批注 PDF：') + path, 10000)
             except Exception as exc:
-                QMessageBox.critical(self, '导出失败', str(exc))
+                QMessageBox.critical(self, tr('导出失败'), str(exc))
 
     def export_reading(self):
         if not self.record:
-            self.statusBar().showMessage('请先导入并打开 PDF。', 5000)
+            self.statusBar().showMessage(tr('请先导入并打开 PDF。'), 5000)
             return
         if self.reading_worker and self.reading_worker.isRunning():
             return
         if self.worker and self.worker.isRunning():
-            self.statusBar().showMessage('请等待当前页识别完成后导出。', 5000)
+            self.statusBar().showMessage(tr('请等待当前页识别完成后导出。'), 5000)
             return
         dialog = ReadingExportDialog(self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         (APP_ROOT / 'exports').mkdir(exist_ok=True)
-        path, _ = QFileDialog.getSaveFileName(self, '保存精读 PDF',
-            str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + '_精读留白.pdf')), 'PDF (*.pdf)')
+        path, _ = QFileDialog.getSaveFileName(self, tr('保存精读 PDF'),
+            str(APP_ROOT / 'exports' / (safe_name(self.record['title']) + tr('_精读留白.pdf'))), 'PDF (*.pdf)')
         if not path:
             return
         if Path(path).resolve().is_relative_to(self.lib.root.resolve()):
-            QMessageBox.warning(self, '请选择其他位置', '不能将导出文件写入文档数据目录，请选择 exports 或其他文件夹。')
+            QMessageBox.warning(self, tr('请选择其他位置'), tr('不能将导出文件写入文档数据目录，请选择 exports 或其他文件夹。'))
             return
         options = {'password': self.password, 'pages': dialog.selected_pages(),
+                   'language': current_language(),
                    'blank_lines': dialog.gap.currentIndex() + 1, 'tessdata': TESSDATA,
                    'marks': copy.deepcopy(self.record['marks']) if dialog.highlights.isChecked() else ()}
         self.reading_destination = path
-        self.reading_progress = QProgressDialog('准备生成精读 PDF…', '取消', 0, len(options['pages']), self)
-        self.reading_progress.setWindowTitle('导出精读 PDF')
+        self.reading_progress = QProgressDialog(tr('准备生成精读 PDF…'), tr('取消'), 0, len(options['pages']), self)
+        self.reading_progress.setWindowTitle(tr('导出精读 PDF'))
         self.reading_progress.setWindowModality(Qt.WindowModality.WindowModal)
         self.reading_progress.setMinimumDuration(0)
         self.reading_progress.setAutoClose(False)
@@ -1880,15 +1928,15 @@ class MainWindow(QMainWindow):
     def reading_export_done(self, report, error):
         self.reading_progress.close()
         if error:
-            QMessageBox.critical(self, '精读导出失败', error)
+            QMessageBox.critical(self, tr('精读导出失败'), error)
         elif report is None:
-            self.statusBar().showMessage('已取消精读导出，保存位置中的原有文件保持完整。', 8000)
+            self.statusBar().showMessage(tr('已取消精读导出，保存位置中的原有文件保持完整。'), 8000)
         else:
-            self.statusBar().showMessage(f"已导出精读 PDF：{report['source_pages']} 个原页 → {report['output_pages']} 个打印页 · {self.reading_destination}", 15000)
+            self.statusBar().showMessage(tr('已导出精读 PDF：{arg0} 个原页 → {arg1} 个打印页 · {arg2}', arg0=report['source_pages'], arg1=report['output_pages'], arg2=self.reading_destination), 15000)
             if report['unchanged_pages']:
                 numbers = ', '.join(map(str, report['unchanged_pages'][:20]))
-                QMessageBox.information(self, '精读导出完成',
-                    f'已保存到：{self.reading_destination}\n\n原 PDF 第 {numbers} 页未找到可安全分开的文字行，保持原版面。请打印前预览。')
+                QMessageBox.information(self, tr('精读导出完成'),
+                    tr('已保存到：{arg0}\n\n原 PDF 第 {arg1} 页未找到可安全分开的文字行，保持原版面。请打印前预览。', arg0=self.reading_destination, arg1=numbers))
 
     def reading_worker_finished(self):
         self.reading_button.setEnabled(True)
@@ -1898,7 +1946,7 @@ class MainWindow(QMainWindow):
     def rename_doc(self):
         if not self.record:
             return
-        text, ok = QInputDialog.getText(self, '重命名文档 / 章节', '文档名称', text=self.record['title'])
+        text, ok = QInputDialog.getText(self, tr('重命名文档 / 章节'), tr('文档名称'), text=self.record['title'])
         if ok and text.strip():
             previous = self.record['title']
             self.record['title'] = text.strip()
@@ -1910,7 +1958,7 @@ class MainWindow(QMainWindow):
     def remove_doc(self):
         if not self.record or (self.worker and self.worker.isRunning()):
             return
-        if QMessageBox.question(self, '移除文档', '从词库移除此文档和它的标记？\n原始 PDF 保持不变。') != QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(self, tr('移除文档'), tr('从词库移除此文档和它的标记？\n原始 PDF 保持不变。')) != QMessageBox.StandardButton.Yes:
             return
         previous = self.lib.state['documents'][:]
         self.lib.state['documents'].remove(self.record)
@@ -1923,7 +1971,7 @@ class MainWindow(QMainWindow):
         self.lib.state['last'] = None
         self.scroll.hide()
         self.empty.show()
-        self.doc_title.setText('开始一段新的阅读')
+        self.doc_title.setText(tr('开始一段新的阅读'))
         self.term_edit.clear()
         self.page_spin.setMaximum(1)
         self.page_total.setText('/ 0')
@@ -1934,22 +1982,22 @@ class MainWindow(QMainWindow):
         if not self.doc or (self.worker and self.worker.isRunning()):
             return
         if not (TESSDATA / 'eng.traineddata').exists():
-            QMessageBox.warning(self, '缺少 OCR 字库', '请恢复软件 tessdata 目录中的 eng.traineddata。')
+            QMessageBox.warning(self, tr('缺少 OCR 字库'), tr('请恢复软件 tessdata 目录中的 eng.traineddata。'))
             return
         self.ocr_page = self.page_no
         self.worker = OCRWorker(str(self.lib.pdf_path(self.record)), self.page_no, self.password)
         self.worker.ready.connect(self.ocr_done)
         self.ocr_button.setEnabled(False)
-        self.statusBar().showMessage('正在离线识别当前页英文，通常需要数秒……')
+        self.statusBar().showMessage(tr('正在离线识别当前页英文，通常需要数秒……'))
         self.worker.start()
 
     def ocr_done(self, words, error):
         self.ocr_button.setEnabled(True)
         if error:
-            QMessageBox.warning(self, '识别失败', error)
+            QMessageBox.warning(self, tr('识别失败'), error)
             return
         if not words:
-            self.statusBar().showMessage('没有识别到英文；可手动输入词条。', 8000)
+            self.statusBar().showMessage(tr('没有识别到英文；可手动输入词条。'), 8000)
             return
         self.record.setdefault('ocr', {})[str(self.ocr_page)] = words
         self.persist()
@@ -1958,7 +2006,7 @@ class MainWindow(QMainWindow):
             self.reader.page_canvas(self.ocr_page)
         self.canvas = self.reader.page_canvas(self.page_no)
         self.update_page_info()
-        self.statusBar().showMessage(f'本页已识别 {len(words)} 个文字区域，请核对后标记。', 8000)
+        self.statusBar().showMessage(tr('本页已识别 {arg0} 个文字区域，请核对后标记。', arg0=len(words)), 8000)
 
     def search_pdf(self):
         if not self.doc or not self.pdf_search.text().strip() or (self.worker and self.worker.isRunning()):
@@ -1982,33 +2030,13 @@ class MainWindow(QMainWindow):
                 r = self.canvas.screen_rect(rect)
                 self.reader.ensure_rect(n, r)
                 self.search_cursor = (query, n, offset)
-                self.statusBar().showMessage(f'找到匹配：第 {n + 1} 页', 5000)
+                self.statusBar().showMessage(tr('找到匹配：第 {arg0} 页', arg0=n + 1), 5000)
                 return
-        self.statusBar().showMessage('未找到匹配。扫描页需先识别，词组请使用 PDF 中的原文查找。', 7000)
+        self.statusBar().showMessage(tr('未找到匹配。扫描页需先识别，词组请使用 PDF 中的原文查找。'), 7000)
 
     def help(self):
-        QMessageBox.information(self, 'XT 阅迹 · 使用帮助',
-            '1. 点击「导入 PDF」，也可以把 PDF 拖入窗口。\n'
-            '2. 单击一个单词，或从词组第一个词拖到最后一个词。\n'
-            '3. 核对下方输入框，按 Enter 或点击「标记选词」。\n'
-            '   快捷操作：双击单词直接收录，再次双击青绿下划线词条即可取消。\n'
-            '4. 点击「一键导出云词本 TXT」，把 TXT 正文粘贴到墨墨背单词云词本。\n\n'
-            '扫描页：点击「识别当前页」，完成后同样选择词条。OCR 结果可能有误，请核对。\n'
-            '词本：双击返回原页；编辑修正拼写；Ctrl 多选后删除。\n'
-            '章节模式保留词组与大小写。// 原型模式由墨墨背单词进行词形还原。\n'
-            '快捷键：Ctrl+O 导入，Ctrl+E 导出，Ctrl+F 查找。\n\n'
-            '精读：右侧「导出精读 PDF」可生成留空行的打印副本。\n'
-            '批注：顶部选择高亮、下划线、画笔、矩形框或文字备注，旁边可选颜色和线宽。\n'
-            '批注管理可定位、编辑备注、删除；Ctrl+Z 撤销，Ctrl+Y 重做，Esc 返回选词。\n'
-            '文字备注直接显示为页面文本框，选词模式双击文本框可编辑，导出 PDF 也能直接阅读。\n'
-            '工具按钮全部展开；默认 1–7 依次切换选词、高亮、下划线、画笔、框、备注、橡皮擦。\n'
-            '右上角「设置」可修改工具快捷键；输入框打字时不触发工具切换。\n'
-            '右侧「导出收录与批注 PDF」会保存全部收录样式和论文批注。\n'
-            '多文件：左侧「合并导出词本」勾选多个 PDF，可统一去重、按文件分章节，并导出 TXT 或释义 PDF。\n'
-            '查词：选词后右侧显示离线中文释义，也可手动输入查词。\n'
-            '个人释义：点击词典下方「编辑 / 补充释义」可长期保存自己的解释，释义表也会使用它。\n'
-            '阅读：默认单页连续滚动，顶部可切换「双页并排」。滚动时自动加载附近页面。\n'
-            '所有 PDF 和标记只在本机保存。备份整个 data 文件夹即可迁移。')
+        QMessageBox.information(self, tr('XT 阅迹 · 使用帮助'),
+            tr('1. 点击「导入 PDF」，也可以把 PDF 拖入窗口。\n2. 单击一个单词，或从词组第一个词拖到最后一个词。\n3. 核对下方输入框，按 Enter 或点击「标记选词」。\n   快捷操作：双击单词直接收录，再次双击青绿下划线词条即可取消。\n4. 点击「一键导出云词本 TXT」，把 TXT 正文粘贴到墨墨背单词云词本。\n\n扫描页：点击「识别当前页」，完成后同样选择词条。OCR 结果可能有误，请核对。\n词本：双击返回原页；编辑修正拼写；Ctrl 多选后删除。\n章节模式保留词组与大小写。// 原型模式由墨墨背单词进行词形还原。\n快捷键：Ctrl+O 导入，Ctrl+E 导出，Ctrl+F 查找。\n\n精读：右侧「导出精读 PDF」可生成留空行的打印副本。\n批注：顶部选择高亮、下划线、画笔、矩形框或文字备注，旁边可选颜色和线宽。\n批注管理可定位、编辑备注、删除；Ctrl+Z 撤销，Ctrl+Y 重做，Esc 返回选词。\n文字备注直接显示为页面文本框，选词模式双击文本框可编辑，导出 PDF 也能直接阅读。\n工具按钮全部展开；默认 1–7 依次切换选词、高亮、下划线、画笔、框、备注、橡皮擦。\n右上角「设置」可修改工具快捷键；输入框打字时不触发工具切换。\n右侧「导出收录与批注 PDF」会保存全部收录样式和论文批注。\n多文件：左侧「合并导出词本」勾选多个 PDF，可统一去重、按文件分章节，并导出 TXT 或释义 PDF。\n查词：选词后右侧显示离线中文释义，也可手动输入查词。\n个人释义：点击词典下方「编辑 / 补充释义」可长期保存自己的解释，释义表也会使用它。\n阅读：默认单页连续滚动，顶部可切换「双页并排」。滚动时自动加载附近页面。\n所有 PDF 和标记只在本机保存。备份整个 data 文件夹即可迁移。'))
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and any(u.toLocalFile().lower().endswith('.pdf') for u in event.mimeData().urls()):
@@ -2021,11 +2049,11 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self.reading_worker and self.reading_worker.isRunning():
-            self.statusBar().showMessage('正在生成精读 PDF，可先在进度窗口取消，完成后再关闭。')
+            self.statusBar().showMessage(tr('正在生成精读 PDF，可先在进度窗口取消，完成后再关闭。'))
             event.ignore()
             return
         if self.worker and self.worker.isRunning():
-            self.statusBar().showMessage('正在识别，请等待完成后关闭。')
+            self.statusBar().showMessage(tr('正在识别，请等待完成后关闭。'))
             event.ignore()
             return
         if not self.persist():
@@ -2057,9 +2085,9 @@ def main():
         lock = QLockFile(str(data_root / 'session.lock'))
         lock.setStaleLockTime(30000)
         if not lock.tryLock(100):
-            QMessageBox.information(None, 'XT 阅迹', '软件已经在运行，请切换到已打开的XT 阅迹 窗口。')
+            QMessageBox.information(None, APP_NAME, tr('软件已经在运行，请切换到已打开的 XT 阅迹 窗口。'))
             return 0
-        window = MainWindow(data_root, reopen=not bool(verify_dir))
+        window = MainWindow(data_root, reopen=not bool(verify_dir), language='zh-CN' if verify_dir else None)
         window.show()
         if verify_dir:
             def verify_packaged():
@@ -2192,6 +2220,16 @@ def main():
                         assert all(term in ''.join(p.get_text() for p in merged_pdf)
                                    for term in ('discovery', 'mother', 'research'))
                     assert window.record == before_merge
+                    preference_probe = MainWindow(Path(verify_dir) / 'fresh-preferences', reopen=False)
+                    assert current_language() == 'en'
+                    preference_probe.close()
+                    for code, label in LANGUAGES:
+                        assert len(__import__('i18n').catalog(code)) >= 349
+                        assert window.save_preferences(window.tool_shortcuts, code)
+                        assert window.annotation_tool.buttons[0].text() == str(tr('选词 / 阅读')) + '  1'
+                        assert Library(data_root).state['language'] == code
+                    assert window.save_preferences(window.tool_shortcuts, 'en')
+                    assert 'peekaboocatx@gmail.com' in str(statement_html())
                     window.grab().save(str(Path(verify_dir, 'window.png')))
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': True, 'marks': len(window.record['marks']),
                         'ocr_words': ocr_count, 'columns': window.reader.columns, 'continuous_pages': len(window.reader.boxes),
@@ -2200,7 +2238,8 @@ def main():
                         'reading_export': reading_report, 'reading_background': True,
                         'vocabulary_export': vocabulary_report, 'annotations': 5,
                         'tool_shortcuts': True, 'visible_tools': len(TOOLS),
-                        'personal_dictionary': True, 'visible_notes': True, 'merge_export': True}), encoding='utf-8')
+                        'personal_dictionary': True, 'visible_notes': True, 'merge_export': True,
+                        'languages': len(LANGUAGES), 'default_english': True, 'author_statement': True}), encoding='utf-8')
                 except Exception as exc:
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': False, 'error': str(exc)}), encoding='utf-8')
                 window.close()
@@ -2210,7 +2249,7 @@ def main():
                 window.import_file(path)
         return app.exec()
     except Exception as exc:
-        QMessageBox.critical(None, 'XT 阅迹 启动失败', str(exc))
+        QMessageBox.critical(None, tr('XT 阅迹 · 启动失败'), str(exc))
         return 1
 
 

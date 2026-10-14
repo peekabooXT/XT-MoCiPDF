@@ -5,6 +5,8 @@ from pathlib import Path
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from i18n import set_language
+set_language('zh-CN')
 import pymupdf as fitz
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import QPoint, Qt
@@ -22,7 +24,7 @@ app = QApplication([])
 configure_fonts(app)
 app.setStyle('Fusion')
 app.setStyleSheet(STYLE)
-w = MainWindow(data / 'library', reopen=False)
+w = MainWindow(data / 'library', reopen=False, language='zh-CN')
 w.show()
 w.import_file(str(ROOT / 'Example.pdf'))
 QTest.qWait(120)
@@ -123,7 +125,7 @@ with fitz.open() as doc:
     page.insert_text((40, 70), 'rotated vocabulary', fontsize=15)
     page.set_rotation(90)
     doc.save(rotated)
-w = MainWindow(data / 'rotated-library', reopen=False)
+w = MainWindow(data / 'rotated-library', reopen=False, language='zh-CN')
 w.show()
 w.import_file(str(rotated))
 double(index('vocabulary'))

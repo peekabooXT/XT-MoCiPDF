@@ -10,6 +10,8 @@ from pathlib import Path
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from i18n import set_language
+set_language('zh-CN')
 import pymupdf as fitz
 from reading_export import export_reading_pdf, page_numbers, ExportCancelled, _bands
 from app import MainWindow, ReadingExportDialog, ReadingExportWorker, TESSDATA, STYLE, configure_fonts
@@ -122,7 +124,7 @@ def verify():
     app.setStyleSheet(STYLE)
     errors = []
     QMessageBox.critical = lambda *args: errors.append(args[2])
-    w = MainWindow(qa / 'library', reopen=False)
+    w = MainWindow(qa / 'library', reopen=False, language='zh-CN')
     w.show()
     w.import_file(str(ROOT / 'Example.pdf'))
     QTest.qWait(150)

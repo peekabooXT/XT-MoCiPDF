@@ -1,11 +1,15 @@
 """Visible annotation tools and user-configurable, single-chord shortcuts."""
+
+from i18n import tr
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (QWidget, QPushButton, QButtonGroup, QDialog,
                                QVBoxLayout, QHBoxLayout, QFormLayout, QLabel, QKeySequenceEdit)
+from localized_widgets import QPushButton, QDialog, QLabel, QComboBox
+from i18n import LANGUAGES, current_language
 
-TOOLS = [('选词 / 阅读', 'select'), ('文字高亮', 'highlight'), ('文字下划线', 'underline'),
-         ('自由画笔', 'ink'), ('矩形框', 'rect'), ('文字备注', 'note'), ('橡皮擦', 'erase')]
+TOOLS = [(tr('选词 / 阅读'), 'select'), (tr('文字高亮'), 'highlight'), (tr('文字下划线'), 'underline'),
+         (tr('自由画笔'), 'ink'), (tr('矩形框'), 'rect'), (tr('文字备注'), 'note'), (tr('橡皮擦'), 'erase')]
 DEFAULT_SHORTCUTS = {key: str(i + 1) for i, (_, key) in enumerate(TOOLS)}
 RESERVED = {'Ctrl+O', 'Ctrl+E', 'Ctrl+F', 'Ctrl+Z', 'Ctrl+Y', 'Esc', 'Return', 'Enter', 'Tab', 'Backtab'}
 PORTABLE = QKeySequence.SequenceFormat.PortableText
@@ -17,16 +21,16 @@ def validated_shortcuts(values):
     for label, key in TOOLS:
         text = values.get(key, DEFAULT_SHORTCUTS[key])
         if not isinstance(text, str):
-            raise ValueError(f'{label}的快捷键格式不正确。')
+            raise ValueError(tr('{arg0}的快捷键格式不正确。', arg0=label))
         sequence = QKeySequence.fromString(text, PORTABLE)
         if text and (sequence.isEmpty() or sequence.count() != 1 or
                      sequence[0].key() in (Qt.Key.Key_unknown, 0)):
-            raise ValueError(f'{label}请设置一个按键，可带 Ctrl、Alt 或 Shift。')
+            raise ValueError(tr('{arg0}请设置一个按键，可带 Ctrl、Alt 或 Shift。', arg0=label))
         text = sequence.toString(PORTABLE)
         if text in RESERVED:
-            raise ValueError(f'{text} 已用于其他操作，请为「{label}」选择其他按键。')
+            raise ValueError(tr('{arg0} 已用于其他操作，请为「{arg1}」选择其他按键。', arg0=text, arg1=label))
         if text and text in seen:
-            raise ValueError(f'「{label}」与「{seen[text]}」都使用 {text}，请避免重复。')
+            raise ValueError(tr('「{arg0}」与「{arg1}」都使用 {arg2}，请避免重复。', arg0=label, arg1=seen[text], arg2=text))
         if text:
             seen[text] = label
         result[key] = text
@@ -68,8 +72,8 @@ class AnnotationToolBar(QWidget):
         for (label, key), button in zip(TOOLS, self.buttons):
             shortcut = QKeySequence(shortcuts[key]).toString(NATIVE)
             button.setText(label + (f'  {shortcut}' if shortcut else ''))
-            button.setToolTip(label + (f' · 快捷键 {shortcut}' if shortcut else ' · 未设置快捷键') +
-                              '\n可在右上角「设置」修改；输入文字时不触发。')
+            button.setToolTip(label + (tr(' · 快捷键 {arg0}', arg0=shortcut) if shortcut else tr(' · 未设置快捷键')) +
+                              tr('\n可在右上角「设置」修改；输入文字时不触发。'))
         self.layout().invalidate()
         self.updateGeometry()
 
@@ -93,10 +97,20 @@ class ShortcutSettingsDialog(QDialog):
     def __init__(self, owner):
         super().__init__(owner)
         self.owner = owner
-        self.setWindowTitle('设置 · 工具快捷键')
-        self.resize(530, 430)
+        self.setWindowTitle(tr('设置 · 语言与快捷键'))
+        self.resize(640, 580)
         layout = QVBoxLayout(self)
-        hint = QLabel('点击快捷键框，再按你想使用的按键，可搭配 Ctrl、Alt、Shift。\n清空可关闭该工具的快捷键。输入框内打字时不会切换工具。')
+        language_row = QFormLayout()
+        self.language = QComboBox()
+        for code, label in LANGUAGES:
+            self.language.addItem(label, code)
+        self.language.setCurrentIndex(self.language.findData(current_language()))
+        language_row.addRow(tr('界面语言'), self.language)
+        layout.addLayout(language_row)
+        language_hint = QLabel(tr('默认为英语。保存后立即切换，并记住你的常用语言。PDF 正文、词条和个人释义保持原内容。'))
+        language_hint.setWordWrap(True)
+        layout.addWidget(language_hint)
+        hint = QLabel(tr('点击快捷键框，再按你想使用的按键，可搭配 Ctrl、Alt、Shift。\n清空可关闭该工具的快捷键。输入框内打字时不会切换工具。'))
         hint.setWordWrap(True)
         layout.addWidget(hint)
         form = QFormLayout()
@@ -106,21 +120,21 @@ class ShortcutSettingsDialog(QDialog):
             editor.setMaximumSequenceLength(1)
             editor.setClearButtonEnabled(True)
             self.editors[key] = editor
-            form.addRow(label, editor)
+            form.addRow(tr(label), editor)
         layout.addLayout(form)
         self.message = QLabel()
         self.message.setWordWrap(True)
         self.message.setStyleSheet('color: #b64c4c;')
         layout.addWidget(self.message)
         row = QHBoxLayout()
-        reset = QPushButton('恢复默认 1–7')
+        reset = QPushButton(tr('恢复默认 1–7'))
         reset.clicked.connect(self.reset)
         row.addWidget(reset)
         row.addStretch()
-        cancel = QPushButton('取消')
+        cancel = QPushButton(tr('取消'))
         cancel.clicked.connect(self.reject)
         row.addWidget(cancel)
-        self.save_button = QPushButton('保存')
+        self.save_button = QPushButton(tr('保存'))
         self.save_button.setObjectName('primary')
         self.save_button.clicked.connect(self.save)
         row.addWidget(self.save_button)
@@ -152,5 +166,5 @@ class ShortcutSettingsDialog(QDialog):
         except ValueError:
             self.validate()
             return
-        if self.owner.save_tool_shortcuts(values):
+        if self.owner.save_preferences(values, self.language.currentData()):
             self.accept()

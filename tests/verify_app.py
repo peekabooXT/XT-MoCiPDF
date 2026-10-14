@@ -6,6 +6,8 @@ from pathlib import Path
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from i18n import set_language
+set_language('zh-CN')
 import pymupdf as fitz
 from PySide6.QtWidgets import QApplication, QMessageBox, QFileDialog, QInputDialog
 from PySide6.QtCore import QPoint, Qt
@@ -57,7 +59,7 @@ page2.insert_text((52, 255), 'national cooperation.', fontsize=13)
 doc.save(sample)
 doc.close()
 
-w = MainWindow(DATA / 'data', reopen=False)
+w = MainWindow(DATA / 'data', reopen=False, language='zh-CN')
 w.show()
 app.processEvents()
 w.import_file(str(sample))
@@ -172,7 +174,7 @@ with fitz.open() as rd:
     rp.insert_text((40, 70), 'rotated phrase test', fontsize=16)
     rp.set_rotation(90)
     rd.save(rot)
-w = MainWindow(DATA / 'rotate-data', reopen=False)
+w = MainWindow(DATA / 'rotate-data', reopen=False, language='zh-CN')
 w.show()
 app.processEvents()
 w.import_file(str(rot))
@@ -200,7 +202,7 @@ with fitz.open(scan) as s:
     words = scan_page.get_text('words', textpage=tp)
     assert any('discovery' in x[4].lower() for x in words), words
     print('OCR regions:', len(words))
-w = MainWindow(DATA / 'scan-data', reopen=False)
+w = MainWindow(DATA / 'scan-data', reopen=False, language='zh-CN')
 w.show()
 app.processEvents()
 w.import_file(str(scan))
@@ -222,7 +224,7 @@ w.close()
 encrypted = CHECK / 'encrypted.pdf'
 with fitz.open(sample) as d:
     d.save(encrypted, encryption=fitz.PDF_ENCRYPT_AES_256, owner_pw='owner-test', user_pw='reader-test')
-w = MainWindow(DATA / 'encrypted-data', reopen=False)
+w = MainWindow(DATA / 'encrypted-data', reopen=False, language='zh-CN')
 rec = w.lib.import_pdf(encrypted)
 w.open_record(rec, 'reader-test')
 select(word_index('discovery.'))

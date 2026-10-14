@@ -1,4 +1,6 @@
 """Local reading annotations, distinct from vocabulary collection."""
+
+from i18n import tr
 import hashlib
 import math
 import os
@@ -12,8 +14,8 @@ import pymupdf as fitz
 from branding import PROJECT_NAME
 
 COLLECTED_COLOR = '#087f73'
-KINDS = {'highlight': '文字高亮', 'underline': '文字下划线', 'ink': '画笔',
-         'rect': '矩形框', 'note': '文字备注'}
+KINDS = {'highlight': tr('文字高亮'), 'underline': tr('文字下划线'), 'ink': tr('画笔'),
+         'rect': tr('矩形框'), 'note': tr('文字备注')}
 
 
 def ink_rgba(rgb, width, height, stride):
@@ -163,7 +165,7 @@ def add_collected_style(doc, marks):
                     xref = page.insert_image(area + (dx, dy, dx, dy), stream=png if not xref else None,
                                              xref=xref, overlay=True)
             annot = page.add_underline_annot([fitz.Rect(r).quad for r in mark['rects']])
-            annot.set_info(content=mark.get('term', ''), subject='已收录词条', title=PROJECT_NAME)
+            annot.set_info(content=mark.get('term', ''), subject=tr('已收录词条'), title=PROJECT_NAME)
             annot.set_colors(stroke=color_rgb(COLLECTED_COLOR))
             annot.update()
             set_underline_width(annot, 1.5)
@@ -204,7 +206,7 @@ def add_reading_annotations(doc, annotations):
             add_visible_note(page, item)
             continue
         else:
-            raise ValueError('不支持的批注类型：' + kind)
+            raise ValueError(tr('不支持的批注类型：') + kind)
         annot.set_colors(stroke=color_rgb(item['color']))
         annot.set_info(content=item.get('text', ''), title=PROJECT_NAME)
         if kind in ('ink', 'rect'):
@@ -218,16 +220,16 @@ def add_reading_annotations(doc, annotations):
 def export_annotated_pdf(source, destination, marks, annotations, password=''):
     source, destination = Path(source), Path(destination)
     if source.resolve() == destination.resolve():
-        raise ValueError('不能覆盖原 PDF，请选择另一个位置。')
+        raise ValueError(tr('不能覆盖原 PDF，请选择另一个位置。'))
     if destination.exists() and destination.stat().st_size == source.stat().st_size:
         if hashlib.sha256(destination.read_bytes()).digest() == hashlib.sha256(source.read_bytes()).digest():
-            raise ValueError('不能覆盖原 PDF 的相同副本，请另选保存位置。')
+            raise ValueError(tr('不能覆盖原 PDF 的相同副本，请另选保存位置。'))
     fd, temporary = tempfile.mkstemp(prefix='.xt-annotations-', suffix='.pdf', dir=destination.parent)
     os.close(fd)
     try:
         with fitz.open(source) as doc:
             if doc.needs_pass and not doc.authenticate(password):
-                raise ValueError('PDF 密码无效。')
+                raise ValueError(tr('PDF 密码无效。'))
             add_collected_style(doc, marks)
             add_reading_annotations(doc, annotations)
             doc.save(temporary, garbage=4, deflate=True, encryption=fitz.PDF_ENCRYPT_KEEP)

@@ -5,6 +5,8 @@ from pathlib import Path
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from i18n import set_language
+set_language('zh-CN')
 import pymupdf as fitz
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtGui import QWheelEvent
@@ -34,7 +36,7 @@ with fitz.open() as doc:
         if i == 4:
             page.set_rotation(90)
     doc.save(paper)
-w = MainWindow(data / 'library', reopen=False)
+w = MainWindow(data / 'library', reopen=False, language='zh-CN')
 w.show()
 app.processEvents()
 w.import_file(str(paper))
@@ -127,7 +129,7 @@ w.close()
 lib = Library(data / 'library')
 assert lib.state['documents'][0]['page'] == 11
 assert lib.state['view_columns'] == 2
-reload = MainWindow(data / 'library', reopen=True)
+reload = MainWindow(data / 'library', reopen=True, language='zh-CN')
 reload.show()
 QTest.qWait(250)
 assert reload.layout_box.currentData() == 2 and reload.page_no == 11

@@ -1,4 +1,6 @@
 """Read-only base dictionary with a separate personal definition overlay."""
+
+from i18n import tr
 import html
 import re
 import sqlite3
@@ -29,7 +31,7 @@ class OfflineDictionary:
             if self.conn:
                 self.conn.close()
             self.conn = None
-            self.error = '离线词典无法读取，请恢复软件目录中的 dictionary 文件夹。选词和导出仍可使用。'
+            self.error = tr('离线词典无法读取，请恢复软件目录中的 dictionary 文件夹。选词和导出仍可使用。')
 
     @property
     def ready(self):
@@ -79,9 +81,9 @@ class OfflineDictionary:
         if not self.ready:
             return {'query': text, 'error': self.error}
         if not text:
-            return {'query': '', 'error': '选中 PDF 单词即可查看释义，也可以输入单词或词组查词。'}
+            return {'query': '', 'error': tr('选中 PDF 单词即可查看释义，也可以输入单词或词组查词。')}
         if len(text) > 240:
-            return {'query': text[:240], 'error': '内容较长，请选择一个单词或较短的词组。'}
+            return {'query': text[:240], 'error': tr('内容较长，请选择一个单词或较短的词组。')}
         if self.conn is None and not self.personal_entry(text):
             return {'query': text, 'error': self.error}
         try:
@@ -94,7 +96,7 @@ class OfflineDictionary:
                         'truncated': len(tokens) > 12}
             return result
         except sqlite3.Error:
-            return {'query': text, 'error': '词典查询失败，请恢复 dictionary 文件夹后重新打开软件。'}
+            return {'query': text, 'error': tr('词典查询失败，请恢复 dictionary 文件夹后重新打开软件。')}
 
     def close(self):
         self.lookup.cache_clear()
@@ -108,29 +110,29 @@ def render_lookup(result):
         return html.escape(str(text)).replace('\\n', '<br>').replace('\n', '<br>')
 
     def entry_html(entry):
-        meaning = entry['translation'] or entry['definition'] or '暂无释义'
-        label = '' if entry['translation'] else '（英文释义）<br>'
+        meaning = entry['translation'] or entry['definition'] or tr('暂无释义')
+        label = '' if entry['translation'] else tr('（英文释义）<br>')
         ipa = f" <span style='color:#71858b'>/{escaped(entry['phonetic'])}/</span>" if entry['phonetic'] else ''
-        badge = '<br><span style="color:#087f73">个人释义 · 已保存</span>' if entry.get('custom') else ''
+        badge = tr('<br><span style="color:#087f73">个人释义 · 已保存</span>') if entry.get('custom') else ''
         return f"<p><b>{escaped(entry['word'])}</b>{ipa}{badge}<br>{label}{escaped(meaning)}</p>"
 
     def word_html(item):
         output = entry_html(item['entry']) if item['entry'] else ''
         if item['bases']:
-            output += '<p style="color:#087f73">词形参考（需结合上下文）</p>'
+            output += tr('<p style="color:#087f73">词形参考（需结合上下文）</p>')
             output += ''.join(entry_html(base) for base in item['bases'])
         if not output:
-            output = '<p><b>' + escaped(item['query']) + '</b><br>词典未收录，可修正拼写后查词。</p>'
+            output = '<p><b>' + escaped(item['query']) + tr('</b><br>词典未收录，可修正拼写后查词。</p>')
         return output
 
     if result.get('error'):
         body = '<p>' + escaped(result['error']) + '</p>'
     elif 'parts' in result:
         body = '<p><b>' + escaped(result['query']) + '</b></p>'
-        body += '<p style="color:#71858b">未收录完整词组，以下为逐词释义。</p>'
+        body += tr('<p style="color:#71858b">未收录完整词组，以下为逐词释义。</p>')
         body += ''.join(word_html(part) for part in result['parts'])
         if result.get('truncated'):
-            body += '<p>仅显示前 12 个词，请缩短选词范围。</p>'
+            body += tr('<p>仅显示前 12 个词，请缩短选词范围。</p>')
     else:
         body = word_html(result)
     return '<html><body style="font-family:Microsoft YaHei;font-size:13px;">' + body + '</body></html>'

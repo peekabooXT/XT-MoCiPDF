@@ -8,6 +8,8 @@ from pathlib import Path
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from i18n import set_language
+set_language('zh-CN')
 import pymupdf as fitz
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -27,7 +29,7 @@ app.setStyle('Fusion')
 app.setStyleSheet(STYLE)
 errors = []
 QMessageBox.warning = QMessageBox.critical = lambda *args: errors.append(str(args[2]))
-w = MainWindow(qa / 'data', reopen=False)
+w = MainWindow(qa / 'data', reopen=False, language='zh-CN')
 w.show()
 w.activateWindow()
 QTest.qWait(30)
@@ -139,7 +141,7 @@ w.grab().save(str(qa / 'minimum.png'))
 w.close()
 loaded = Library(qa / 'data')
 assert loaded.state['dictionary_overrides'][normalize('predator-prey')]['translation'] == updated
-w = MainWindow(qa / 'data', reopen=False)
+w = MainWindow(qa / 'data', reopen=False, language='zh-CN')
 w.show()
 w.lookup_term('predator-prey')
 assert updated in w.dictionary_view.toPlainText() and phonetic in w.dictionary_view.toPlainText()

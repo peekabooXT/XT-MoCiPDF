@@ -1,36 +1,56 @@
 # XT 阅迹 · XT-ReadTrace
 
-<img src="icon-preview.png" width="80" alt="XT 阅迹图标">
+[English](README.md) | [简体中文](README.zh-CN.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [한국어](README.ko.md) | [Italiano](README.it.md) | [हिन्दी](README.hi.md) | [Español](README.es.md) | [العربية الفصحى](README.ar.md) | [Português](README.pt.md) | [Русский](README.ru.md)
 
-XT（XuTao）的个人英文 PDF 精读与词本工具。**读一页，记一点。**
+XT (XuTao)'s desktop tool for reading English PDFs, collecting vocabulary and making research notes. Read a page, leave a trace.
 
-Windows 本地运行，支持连续阅读、双页并排、离线英汉查词、单词与词组标记、墨墨背单词云词本导出，以及方便打印手写的精读留白 PDF。
+## Install and launch
 
-## 直接使用
+Download XT-ReadTrace-1.13.0-Setup-x64.exe from [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), then run the installer. It includes the complete offline dictionary, English OCR data and runtime. Keep the desktop shortcut option enabled. No Python installation or account is required for the installed app.
 
-从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) 下载 **Windows 安装包** `XT-ReadTrace-1.12.0-Setup-x64.exe`，双击后按中文向导安装。安装包包含完整离线词典和 OCR 字库，并创建桌面与开始菜单入口，无需安装 Python 或另外下载词典。
+The default installation folder is `D:\tools\codex\XT-ReadTrace`. Open the desktop shortcut named XT 阅迹, or run `XT阅迹.exe`. Keep the `_internal` and `dictionary` folders alongside the executable.
 
-也可下载原有 Windows 便携包，完整解压到英文目录，例如 `D:\tools\codex\XT-ReadTrace`，然后双击 **XT阅迹.exe**。日常使用无需联网。
+## Interface language
 
-请保留 `_internal` 和 `dictionary` 文件夹。软件启动后会在本机创建 `data` 和 `exports`；用户 PDF、标记、打开密码和导出记录不随源码或初始发布包上传。
+English is the default. Open Settings, select Interface language, and save. The interface switches immediately and remembers your choice for future launches. Available languages: Chinese, English, German, Japanese, French, Korean, Italian, Hindi, Spanish, Modern Standard Arabic, Portuguese and Russian. Arabic uses a right-to-left interface.
 
-完整操作说明见 [使用说明](使用说明.md)。[精读导出示例](精读导出示例.pdf) 展示每行之间增加书写留白的效果。
+Language selection applies to reading tools, settings, dialogs, export options, help, status messages and errors. It does not translate the original PDF, collected English terms or your personal definitions. The bundled dictionary provides English–Chinese meanings. All language resources and open-license Noto fonts for Japanese, Korean, Arabic and Hindi are included for offline use.
 
-## 已有功能
+## Read, collect and annotate
 
-- 导入文字版或扫描版英文 PDF，保留原始文件。
-- 鼠标滚轮连续跨页，支持双页阅读、缩放、页码跳转和全文查找。
-- 单击选词、拖选词组；双击直接标记，再次双击取消。
-- 内置约 77 万条 ECDICT 词条，显示中文释义、音标和词形参考；词组未收录时逐词解释。
-- 导出 UTF-8 墨墨背单词云词本正文，完整保留词组和大小写；可生成保留收录样式和论文批注的 PDF。
-- 导出两列单词释义 PDF：左列英文、右列中文，可预览修改释义、合并重复或只导出选中词条，支持完整长释义分页打印。
-- 左侧「合并导出词本 · 多文件」可勾选多个 PDF，合并导出 TXT 或双列释义 PDF；支持跨文件去重、保留完整词组、按文件或页码分章节。
-- 精读导出支持每行增加 1 / 2 行留白、全部 / 当前 / 指定页码、A4 自动分页，以及可选标记高亮。
-- 离线英文 OCR、加密 PDF、自动保存与本机备份。
+1. Import one or more English PDFs, or drag them into the window. Text PDFs and scanned PDFs are supported.
+2. Double-click a word to collect it; double-click its colored bold underline again to remove that occurrence. Click or drag to select a phrase, check the text below, then press Enter to collect it.
+3. Scroll continuously across pages. Choose continuous single pages or a two-page view, adjust zoom, jump to a page, or search the PDF.
+4. Use Highlight text, Underline text, Freehand pen, Rectangle or Text note for reading annotations. Notes appear directly on the page, support multiple lines, and can be edited by double-clicking in Select / Read mode. Use the eraser, annotation manager, undo or redo to revise annotations.
+5. The seven tool shortcuts default to 1–7 and can be changed in Settings. Shortcuts do not switch tools while you type in an editable field.
 
-## 从源码运行
+For a scan, run OCR on the current page first. The app uses bundled English OCR data. Check recognition results, especially in complex columns, tables, formulas or low-quality scans.
 
-使用独立 CPython 3.12+，建议避免 Anaconda 的 Qt DLL 冲突。仓库内已包含压缩的离线词典；首次准备时会自动在本地解包，不需要下载词典。首次安装 Python 依赖通常仍需要联网。
+## Offline dictionary and personal meanings
+
+The included ECDICT dictionary contains 770,611 entries. Select a word or type a query to see its meaning, pronunciation and possible base forms. If a phrase is missing, the app labels its component-word definitions clearly.
+
+Use Edit / Add meaning to save your own explanation and optional pronunciation. Personal meanings are shared across PDFs, survive restarts and take priority in lookups and vocabulary-table exports. The bundled dictionary stays read-only. Restoring a dictionary meaning requires confirmation.
+
+## Export one PDF or merge several wordbooks
+
+- Wordbook TXT: export UTF-8 text compatible with MAiMemo's cloud wordbook. Chapter mode keeps one complete word or phrase per line and preserves case. Page chapters, plain text and the `//` base-form mode are also available. Base-form processing is performed by MAiMemo.
+- Multiple PDFs: click Merge wordbooks below the document list, check the files, and preview the result. Select all or clear the selection as needed. Remove duplicates across files, optionally convert to lowercase, and export a single TXT wordbook. TXT can group entries by file, by file and page, or into one chapter.
+- Printable vocabulary table: export an A4 PDF with English words or phrases on the left and meanings on the right. Preview and edit meanings for this export. Long meanings continue onto subsequent pages with repeated column headers. A merged table can include all checked PDFs and uses your saved personal meanings.
+- Words and annotations PDF: create a copy containing collected-word styling and standard PDF annotations. Text notes remain directly visible and printable. The original PDF is preserved.
+- Reading PDF with writing space: add one or two blank lines between visual text rows for handwritten notes. Choose all pages, the current page or a page range. Output uses A4 pagination and can include collected-word styling. Processing runs in the background and can be cancelled.
+
+Merging reads the selected records without changing their PDFs, marks, notes or your reading position. The wordbook contains collected terms; reading highlights and other annotations are exported separately in the annotated PDF.
+
+## Personal data and upgrades
+
+The app stores your PDFs, vocabulary, notes, preferences and personal meanings in its local `data` folder. Exported files are normally saved in `exports`. Close the app and back up both folders when moving to another computer.
+
+Installer upgrades preserve existing personal data. Uninstalling removes program files and shortcuts while leaving personal data. Source releases and initial installers exclude personal PDFs, library records, passwords and export files. PDF opening passwords are held in memory and are not saved to disk.
+
+## Run from source
+
+Use standalone CPython 3.12 or newer. An isolated environment is recommended to avoid Qt DLL conflicts with Anaconda. Installing Python dependencies may require internet access; the dictionary is bundled and can be prepared offline.
 
 ```powershell
 python -m venv .venv
@@ -39,53 +59,32 @@ python -m venv .venv
 .\.venv\Scripts\python.exe .\src\app.py
 ```
 
-`dictionary/ecdict.sqlite.gz` 包含完整的 770,611 条 ECDICT 词条。准备脚本优先离线解包，并校验压缩文件与解包数据库的 SHA-256；解包后的 `ecdict.sqlite` 不重复写入 Git 历史。Windows 发布包直接包含已解包数据库。英文 OCR 字库在 `tessdata` 中。
+`dictionary/ecdict.sqlite.gz` contains the full dictionary. The preparation script verifies checksums and decompresses it locally. Windows installers include the unpacked database. Dictionary source and checksum information are in `dictionary/source.json`; its MIT license is in `dictionary/LICENSE.txt`.
 
-如果两份数据库都缺失，准备脚本才会尝试下载固定版本的公开 ECDICT CSV 并校验其 SHA-256 后重建。MIT 许可和数据来源随词典一同保存。
-
-## 构建与验证
+## Build and verify
 
 ```powershell
 .\src\build.ps1 -Python python
 .\tests\run_checks.ps1 -Python .\.venv\Scripts\python.exe
+.\installer\build-installer.ps1 -ISCC 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' -Payload 'path-to-complete-payload'
 ```
 
-使用 Inno Setup 6.7+ 可以把完整便携目录进一步打包成安装程序：
+Build with Inno Setup 6.7 or newer. Tests use generated samples and isolated temporary libraries. They cover reading, selection, continuous pages, OCR, dictionaries, annotations, exports, multi-file merging and language preferences. Installer payloads include language catalogs and exclude `data`, `exports`, `.git` and test artifacts.
 
-```powershell
-.\installer\build-installer.ps1 -ISCC 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' -Payload '完整便携目录路径'
-```
+## Author statement and license
 
-安装脚本只包含程序、字库、词典、源代码、许可和示例，不收录 `data`、`exports`、`.git` 或测试临时文件。安装升级不会覆盖个人文档数据；卸载后 `data` 和 `exports` 保留。更新旧便携版时选择原目录即可；安装向导要求英文目录以兼容离线 OCR。
+Author: XT (XuTao). This project was developed with assistance from large language models and is fully open source under GNU AGPLv3; see [LICENSE](LICENSE). Third-party components retain their own licenses; see [Third-party notices](第三方说明.txt).
 
-构建脚本输出完整便携目录。验证覆盖鼠标选词、双击、连续双页、OCR、离线词典、精读留白、分页、密码保护和取消导出等行为。测试使用生成的示例与独立临时词库，不读取个人 PDF。
+Without the author's authorization, the author does not provide commercial deployment, commercial customization or related support. This support policy does not restrict the rights granted by GNU AGPLv3 and does not prohibit commercial use permitted by that license. Commercial use must still comply with all applicable component licenses.
 
-## 保存与更新
+Suggestions and contact: [peekaboocatx@gmail.com](mailto:peekaboocatx@gmail.com).
 
-关闭软件后备份 `data` 文件夹。更新时保留或迁移 `data`，再替换程序、运行库和词典。数据结构保持兼容，现有词条、批注和快捷键设置可以继续使用。
+## Acknowledgments
 
-## 许可与范围
+Thank you to [Hunan University of Science and Technology](https://www.hnust.edu.cn/), its [School of Computer Science and Engineering](https://computer.hnust.edu.cn/), and the Hunan Provincial Key Laboratory of Service Computing and Novel Software Service Technologies for providing an environment for study and research.
 
-软件源码按 **GNU AGPLv3** 提供，见 [LICENSE](LICENSE)；第三方组件保持各自许可，见 [第三方说明](第三方说明.txt)。ECDICT 使用 MIT 许可，其固定版本、来源和校验值见 `dictionary/source.json`。
+## Scope and translations
 
-扫描 OCR、复杂多栏、表格、公式和生僻词可能需要人工核对。离线查词不提供整句机器翻译。本项目不是墨墨背单词官方软件，不登录墨墨背单词，也不自动上传词本。
+This app is independently developed and is not an official MAiMemo product. It does not log in to MAiMemo or upload wordbooks automatically. Offline lookup is not full-sentence machine translation. OCR, uncommon vocabulary and complex PDF layouts may require checking.
 
-## v1.7.0 论文批注
-
-已收录词条改为青绿加粗和下划线；普通批注独立提供文字高亮、下划线、自由画笔、矩形框与中文文字备注，支持颜色、线宽、撤销重做、删除管理及自动保存。点击「导出收录与批注 PDF」生成保留标准 PDF 批注的副本。墨墨背单词 TXT 和两列释义表仍只包含收录词条。
-
-## 导航与快捷键
-
-七个阅读与批注工具全部展开为导航按钮，窄窗口保持单排并支持横向滚动。默认数字 1–7 依次切换选词 / 阅读、文字高亮、文字下划线、自由画笔、矩形框、文字备注、橡皮擦。右上角「设置」可修改、清空或恢复工具快捷键，自动检测重复及已有功能的冲突；设置保存在本机，重开软件后有效。文本输入、页码输入和设置录入时不会触发切换。
-
-## 统一命名与单排导航
-
-产品名为 **XT 阅迹**，项目名为 **XT-ReadTrace**。程序、安装器、目录、仓库、PDF 导出元数据和开发规范统一使用该名称，详见 [命名规范](NAMING.md)。全部工具与颜色、线宽、撤销、重做、批注管理处于同一排；窄窗口可横向滚动，数字快捷键继续有效。
-
-## 个人释义
-
-词典区域的「编辑 / 补充释义」可给未收录词组补充多行解释，也可修改已有词条，音标可选。保存的个人释义跨 PDF 共用，重开后仍有效，查词与两列单词释义表优先使用。数据保存在个人 data/library.json，随 data 备份迁移；内置词典保持只读。可确认恢复内置释义。
-
-## 可见文字备注
-
-文字备注直接显示为页面上的文本框，支持中文、多行与自动换行，按内容扩展并在长备注时适当调整字号。已有备注使用新样式显示，数据无需重新添加。选词模式双击文本框编辑，橡皮擦可在整个框内删除；缩放与旋转时保持位置。批注 PDF 导出保留可见自由文本与完整注释内容。
+Translated interface text and READMEs were prepared with automated assistance; corrections are welcome at the contact address above. The English README is the documentation baseline. Code identifiers, stable file names and stored record keys use consistent project naming; see [Naming conventions](NAMING.md).

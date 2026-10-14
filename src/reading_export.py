@@ -4,6 +4,8 @@ Copy PDF bands as vectors instead of replacing the user's fonts or reflowing
 the text. Never edit the input file. Images/tables with their own rectangles
 are kept together; full-page scans use OCR only to locate splitting gaps.
 """
+
+from i18n import tr, set_language
 import os
 import hashlib
 import secrets
@@ -38,10 +40,10 @@ def page_numbers(text, count):
     for part in text.replace('，', ',').split(','):
         ends = part.strip().split('-')
         if len(ends) not in (1, 2) or not all(value.strip().isdigit() for value in ends):
-            raise ValueError('页码格式示例：1-3,5,8。')
+            raise ValueError(tr('页码格式示例：1-3,5,8。'))
         first, last = int(ends[0]), int(ends[-1])
         if not 1 <= first <= last <= count:
-            raise ValueError(f'页码必须在 1 到 {count} 之间，且起始页不能大于结束页。')
+            raise ValueError(tr('页码必须在 1 到 {arg0} 之间，且起始页不能大于结束页。', arg0=count))
         numbers.update(range(first - 1, last))
     return sorted(numbers)
 
@@ -127,16 +129,18 @@ def _bands(page, tessdata):
 
 
 def export_reading_pdf(source, destination, *, password='', pages=None, blank_lines=1,
-                       marks=(), tessdata=None, progress=None, cancelled=None):
+                       marks=(), tessdata=None, progress=None, cancelled=None, language=None):
+    if language is not None:
+        set_language(language)
     source, destination = Path(source), Path(destination)
     if source.resolve() == destination.resolve():
-        raise ValueError('请选择另一个导出位置，不能覆盖原 PDF。')
+        raise ValueError(tr('请选择另一个导出位置，不能覆盖原 PDF。'))
     if destination.exists() and destination.stat().st_size == source.stat().st_size:
         with source.open('rb') as a, destination.open('rb') as b:
             if hashlib.file_digest(a, 'sha256').digest() == hashlib.file_digest(b, 'sha256').digest():
-                raise ValueError('该文件与导入的原 PDF 相同，请使用新的文件名保存精读副本。')
+                raise ValueError(tr('该文件与导入的原 PDF 相同，请使用新的文件名保存精读副本。'))
     if blank_lines not in (1, 2):
-        raise ValueError('留白行数必须是 1 或 2。')
+        raise ValueError(tr('留白行数必须是 1 或 2。'))
     report = {'source_pages': 0, 'output_pages': 0, 'ocr_pages': [], 'unchanged_pages': []}
     temporary = None
 
@@ -148,18 +152,18 @@ def export_reading_pdf(source, destination, *, password='', pages=None, blank_li
         with fitz.open(source) as original, fitz.open() as output:
             encrypted = bool((original.metadata or {}).get('encryption')) or original.needs_pass
             if original.needs_pass and not original.authenticate(password):
-                raise ValueError('无法打开加密 PDF，请重新输入密码。')
+                raise ValueError(tr('无法打开加密 PDF，请重新输入密码。'))
             permissions = original.permissions
             pages = list(range(len(original))) if pages is None else sorted(set(pages))
             if not pages or any(n < 0 or n >= len(original) for n in pages):
-                raise ValueError('请选择有效的导出页码。')
+                raise ValueError(tr('请选择有效的导出页码。'))
             add_collected_style(original, [mark for mark in marks if mark['page'] in pages])
             # show_pdf_page excludes annotations; baking keeps their appearance.
             original.bake(annots=True, widgets=True)
             for done, number in enumerate(pages):
                 check_cancel()
                 if progress:
-                    progress(done, len(pages), f'正在处理原 PDF 第 {number + 1} 页…')
+                    progress(done, len(pages), tr('正在处理原 PDF 第 {arg0} 页…', arg0=number + 1))
                 page = original[number]
                 page.remove_rotation()
                 bands, gap, ocr, unchanged = _bands(page, tessdata)
@@ -215,7 +219,7 @@ def export_reading_pdf(source, destination, *, password='', pages=None, blank_li
             os.replace(temporary, destination)
             temporary = None
         if progress:
-            progress(len(pages), len(pages), '导出完成')
+            progress(len(pages), len(pages), tr('导出完成'))
         return report
     finally:
         if temporary and Path(temporary).exists():

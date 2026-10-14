@@ -7,6 +7,8 @@ from pathlib import Path
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from i18n import set_language
+set_language('zh-CN')
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication, QMessageBox, QPlainTextEdit, QInputDialog
@@ -22,7 +24,7 @@ app.setStyle('Fusion')
 app.setStyleSheet(STYLE)
 errors = []
 QMessageBox.warning = QMessageBox.critical = lambda *a: errors.append(str(a[2]))
-w = MainWindow(qa / 'data', reopen=False)
+w = MainWindow(qa / 'data', reopen=False, language='zh-CN')
 w.show()
 w.activateWindow()
 w.import_file(str(ROOT / 'Example.pdf'))
@@ -160,7 +162,7 @@ assert w.record['marks'] == marks and not w.record.get('annotations')
 w.close()
 loaded = Library(qa / 'data')
 assert loaded.state['tool_shortcuts'] == saved
-w = MainWindow(qa / 'data', reopen=False)
+w = MainWindow(qa / 'data', reopen=False, language='zh-CN')
 w.show()
 w.activateWindow()
 w.open_record(loaded.state['documents'][0])

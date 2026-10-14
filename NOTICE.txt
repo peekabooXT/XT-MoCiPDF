@@ -1,0 +1,21 @@
+XT 阅迹 / XT-ReadTrace
+Author / 作者：XT (XuTao)
+
+This project was developed with assistance from large language models.
+The complete source is provided under GNU AGPLv3; see LICENSE.
+Without the author's authorization, the author does not provide commercial
+deployment, commercial customization or related support. This support policy
+does not restrict the rights granted by GNU AGPLv3 or prohibit commercial use
+permitted by that license. Third-party components retain their own licenses.
+
+本项目由大模型辅助开发，全部源码依据 GNU AGPLv3 提供。
+未经作者授权，作者不提供商用部署、商业定制或相关支持；此支持政策不限制
+GNU AGPLv3 授予的权利，也不禁止该许可证允许的商业用途。
+第三方组件保留各自许可。
+
+感谢湖南科技大学、湖南科技大学计算机科学与工程学院以及服务计算与软件
+服务新技术湖南省重点实验室提供的学习与科研环境。
+https://www.hnust.edu.cn/
+https://computer.hnust.edu.cn/
+
+Suggestions and contact / 建议与联系：peekaboocatx@gmail.com
