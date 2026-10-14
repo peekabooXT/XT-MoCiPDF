@@ -6,7 +6,7 @@ Lo strumento desktop di XT (XuTao) per leggere PDF in inglese, raccogliere vocab
 
 ## Installa e avvia
 
-Scarica XT-ReadTrace-1.13.1-Setup-x64.exe da [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), quindi esegui il programma di installazione. Include il dizionario offline completo, i dati OCR inglesi e il runtime. Mantieni abilitata l'opzione di collegamento sul desktop. Non è richiesta alcuna installazione o account Python per l'app installata.
+Scarica XT-ReadTrace-1.13.2-Setup-x64.exe da [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), quindi esegui il programma di installazione. Include il dizionario offline completo, i dati OCR inglesi e il runtime. Mantieni abilitata l'opzione di collegamento sul desktop. Non è richiesta alcuna installazione o account Python per l'app installata.
 
 La cartella di installazione predefinita è `D:\tools\codex\XT-ReadTrace`. Apri il collegamento sul desktop denominato XT 阅迹 o esegui `XT阅迹.exe`. Conserva le cartelle `_internal` e `dictionary` insieme all'eseguibile.
 

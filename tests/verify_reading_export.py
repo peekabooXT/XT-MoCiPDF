@@ -39,6 +39,35 @@ def verify():
     doc.save(source)
     doc.close()
     source_hash = hashlib.sha256(source.read_bytes()).digest()
+    # Three short source pages should use spare paper continuously, while
+    # intentional blank pages and orientation changes retain their boundaries.
+    packed_source = qa / 'packed-source.pdf'
+    with fitz.open() as doc:
+        for source_no in range(3):
+            page = doc.new_page(width=595, height=842)
+            for row in range(12):
+                page.insert_text((50, 58 + row * 15), f'PACK{source_no}_{row:02} original row', fontsize=11)
+        doc.new_page(width=595, height=842)
+        page = doc.new_page(width=842, height=595)
+        page.insert_text((50, 58), 'LANDSCAPE preserved', fontsize=11)
+        doc.save(packed_source)
+    for lines in (1, 2):
+        packed_output = qa / f'packed-{lines}.pdf'
+        export_reading_pdf(packed_source, packed_output, blank_lines=lines, tessdata=TESSDATA)
+        with fitz.open(packed_source) as a, fitz.open(packed_output) as b:
+            expected = Counter(w[4] for p in a for w in p.get_text('words'))
+            actual = Counter(w[4] for p in b for w in p.get_text('words') if w[1] < p.rect.height - 34)
+            assert actual == expected, (expected - actual, actual - expected)
+            assert any('PACK0_' in p.get_text() and 'PACK1_' in p.get_text() for p in b)
+            assert len(b) == (4 if lines == 1 else 5), len(b)
+            blank = b[-2]
+            assert blank.get_text().strip() == f'Source 4 | Part 1 | Print {len(b) - 1}'
+            assert tuple(b[-1].rect[2:]) == (842, 595)
+            assert 'Source 1-2 | Print 1' in b[0].get_text()
+    export_reading_pdf(packed_source, qa / 'nonconsecutive.pdf', pages=[0, 2], tessdata=TESSDATA)
+    with fitz.open(qa / 'nonconsecutive.pdf') as doc:
+        assert 'Source 1,3 | Print 1' in doc[0].get_text()
+        assert 'Source 1-3' not in doc[0].get_text()
     report = export_reading_pdf(source, qa / 'spaced.pdf', tessdata=TESSDATA)
     assert report['source_pages'] == 4 and report['output_pages'] > 4
     with fitz.open(source) as a, fitz.open(qa / 'spaced.pdf') as b:

@@ -6,7 +6,7 @@
 
 ## 설치 및 실행
 
-[Releases](https://github.com/peekabooXT/XT-ReadTrace/releases)에서 XT-ReadTrace-1.13.1-Setup-x64.exe를 다운로드한 다음 설치 프로그램을 실행합니다. 여기에는 완전한 오프라인 사전, 영어 OCR 데이터 및 런타임이 포함됩니다. 바탕 화면 바로 가기 옵션을 활성화된 상태로 유지하세요. 설치된 앱에는 Python 설치나 계정이 필요하지 않습니다.
+[Releases](https://github.com/peekabooXT/XT-ReadTrace/releases)에서 XT-ReadTrace-1.13.2-Setup-x64.exe를 다운로드한 다음 설치 프로그램을 실행합니다. 여기에는 완전한 오프라인 사전, 영어 OCR 데이터 및 런타임이 포함됩니다. 바탕 화면 바로 가기 옵션을 활성화된 상태로 유지하세요. 설치된 앱에는 Python 설치나 계정이 필요하지 않습니다.
 
 기본 설치 폴더는 `D:\tools\codex\XT-ReadTrace`입니다. XT 阅迹라는 바탕 화면 바로 가기를 열거나 `XT阅迹.exe`를 실행합니다. 실행 파일과 함께 `_internal` 및 `dictionary` 폴더를 유지하십시오.
 

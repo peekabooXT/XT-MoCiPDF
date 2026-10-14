@@ -6,7 +6,7 @@
 
 ## インストールして起動する
 
-[Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) から XT-ReadTrace-1.13.1-Setup-x64.exe をダウンロードし、インストーラーを実行します。これには、完全なオフライン辞書、英語 OCR データ、およびランタイムが含まれています。デスクトップ ショートカット オプションを有効のままにしておきます。インストールされたアプリには、Python のインストールやアカウントは必要ありません。
+[Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) から XT-ReadTrace-1.13.2-Setup-x64.exe をダウンロードし、インストーラーを実行します。これには、完全なオフライン辞書、英語 OCR データ、およびランタイムが含まれています。デスクトップ ショートカット オプションを有効のままにしておきます。インストールされたアプリには、Python のインストールやアカウントは必要ありません。
 
 デフォルトのインストールフォルダーは `D:\tools\codex\XT-ReadTrace` です。 XT 阅迹 という名前のデスクトップ ショートカットを開くか、`XT阅迹.exe` を実行します。 `_internal` フォルダーと `dictionary` フォルダーを実行可能ファイルの横に保管します。
 

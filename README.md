@@ -6,7 +6,7 @@ XT (XuTao)'s desktop tool for reading English PDFs, collecting vocabulary and ma
 
 ## Install and launch
 
-Download XT-ReadTrace-1.13.1-Setup-x64.exe from [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), then run the installer. It includes the complete offline dictionary, English OCR data and runtime. Keep the desktop shortcut option enabled. No Python installation or account is required for the installed app.
+Download XT-ReadTrace-1.13.2-Setup-x64.exe from [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), then run the installer. It includes the complete offline dictionary, English OCR data and runtime. Keep the desktop shortcut option enabled. No Python installation or account is required for the installed app.
 
 The default installation folder is `D:\tools\codex\XT-ReadTrace`. Open the desktop shortcut named XT 阅迹, or run `XT阅迹.exe`. Keep the `_internal` and `dictionary` folders alongside the executable.
 
@@ -90,3 +90,5 @@ This app is independently developed and is not an official MAiMemo product. It d
 Translated interface text and READMEs were prepared with automated assistance; corrections are welcome at the contact address above. The English README is the documentation baseline. Code identifiers, stable file names and stored record keys use consistent project naming; see [Naming conventions](NAMING.md).
 
 1.13.1: Freehand pen: hold Ctrl for a straight line or Shift for a wavy line. Hold the left mouse button and drag to erase annotations. Double-click collected words in Select / Read mode to remove their marks.
+
+1.13.2: Reading PDF export continues across source pages to fill spare paper, while keeping blank pages, orientation changes and protected diagrams separate. Footer labels identify all source pages on each printed sheet.

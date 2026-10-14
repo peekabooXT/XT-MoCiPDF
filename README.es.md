@@ -6,7 +6,7 @@ La herramienta de escritorio de XT (XuTao) para leer archivos PDF en inglés, re
 
 ## Instalar y ejecutar
 
-Descargue XT-ReadTrace-1.13.1-Setup-x64.exe desde [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) y luego ejecute el instalador. Incluye el diccionario completo sin conexión, datos OCR en inglés y tiempo de ejecución. Mantenga habilitada la opción de acceso directo del escritorio. No se requiere ninguna instalación o cuenta de Python para la aplicación instalada.
+Descargue XT-ReadTrace-1.13.2-Setup-x64.exe desde [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) y luego ejecute el instalador. Incluye el diccionario completo sin conexión, datos OCR en inglés y tiempo de ejecución. Mantenga habilitada la opción de acceso directo del escritorio. No se requiere ninguna instalación o cuenta de Python para la aplicación instalada.
 
 La carpeta de instalación predeterminada es `D:\tools\codex\XT-ReadTrace`. Abra el acceso directo del escritorio llamado XT 阅迹 o ejecute `XT阅迹.exe`. Mantenga las carpetas `_internal` y `dictionary` junto al ejecutable.
 

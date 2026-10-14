@@ -160,6 +160,8 @@ def export_reading_pdf(source, destination, *, password='', pages=None, blank_li
             add_collected_style(original, [mark for mark in marks if mark['page'] in pages])
             # show_pdf_page excludes annotations; baking keeps their appearance.
             original.bake(annots=True, widgets=True)
+            target, sheet_size, y = None, None, 20
+            sheets = []
             for done, number in enumerate(pages):
                 check_cancel()
                 if progress:
@@ -175,18 +177,20 @@ def export_reading_pdf(source, destination, *, password='', pages=None, blank_li
                 width, height = (842, 595) if page.rect.width > page.rect.height * 1.2 else (595, 842)
                 margin, bottom = 20, height - 34
                 scale = min(1, (width - margin * 2) / page.rect.width)
-                y, target, part = margin, None, 0
+                part = 0
+                # Keep an intentional empty source page separate. Ordinary
+                # source boundaries can share paper with the following page.
+                blank_page = not (page.get_text().strip() or page.get_image_info() or page.get_drawings())
 
                 def next_sheet():
-                    nonlocal target, y, part
+                    nonlocal target, y, sheet_size
                     target = output.new_page(width=width, height=height)
-                    part += 1
+                    sheet_size = (width, height)
+                    sheets.append([])
                     y = margin
-                    target.insert_text((margin, height - 20),
-                                       f'Source {number + 1} | Part {part} | Print {len(output)}',
-                                       fontsize=8, color=(.45, .45, .45))
 
-                next_sheet()
+                if target is None or sheet_size != (width, height) or blank_page:
+                    next_sheet()
                 for index, (start, end, has_text) in enumerate(bands):
                     check_cancel()
                     capacity = bottom - margin
@@ -195,15 +199,41 @@ def export_reading_pdf(source, destination, *, password='', pages=None, blank_li
                     size = (end - start) * band_scale
                     if y + size > bottom + .01 and y > margin:
                         next_sheet()
+                    if not sheets[-1] or sheets[-1][-1][0] != number + 1:
+                        part += 1
+                        sheets[-1].append((number + 1, part))
                     rect = fitz.Rect((width - page.rect.width * band_scale) / 2, y,
                                      (width + page.rect.width * band_scale) / 2, y + size)
                     if page.get_contents():
                         target.show_pdf_page(rect, original, number,
                                              clip=fitz.Rect(0, start, page.rect.width, end))
                     y += size
-                    if has_text and index < len(bands) - 1:
+                    if has_text:
                         y += gap * scale * blank_lines
+                if blank_page:
+                    target = None
                 report['source_pages'] += 1
+            # New PDF pages invalidate earlier Page objects. Add provenance
+            # only after pagination, retrieving each finished sheet afresh.
+            for index, sources in enumerate(sheets):
+                check_cancel()
+                if len(sources) == 1:
+                    number, part = sources[0]
+                    label = f'Source {number} | Part {part}'
+                else:
+                    ranges = []
+                    first = last = sources[0][0]
+                    for number, _ in sources[1:]:
+                        if number == last + 1:
+                            last = number
+                        else:
+                            ranges.append(str(first) if first == last else f'{first}-{last}')
+                            first = last = number
+                    ranges.append(str(first) if first == last else f'{first}-{last}')
+                    label = 'Source ' + ','.join(ranges)
+                sheet = output[index]
+                sheet.insert_text((20, sheet.rect.height - 20),
+                                  f'{label} | Print {index + 1}', fontsize=8, color=(.45, .45, .45))
             check_cancel()
             output.set_metadata({'title': (original.metadata.get('title') or source.stem) + ' - Reading notes',
                                  'creator': PROJECT_NAME + ' ' + VERSION, 'subject': 'Extra space between text rows for handwritten notes'})
