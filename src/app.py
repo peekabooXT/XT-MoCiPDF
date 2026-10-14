@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
     QPlainTextEdit, QAbstractItemView, QTextBrowser, QProgressDialog, QTableWidget,
     QTableWidgetItem, QHeaderView, QTextEdit, QAbstractSpinBox, QKeySequenceEdit, QSizePolicy)
 
-from core import Library, clean_term, validate_term, export_body
+from core import (Library, clean_term, validate_term, export_body, merged_record,
+                  export_merged_body, protect_export_path, write_export_text)
 from branding import APP_NAME, PROJECT_NAME, VERIFY_ENV
 from dictionary import OfflineDictionary, normalize, render_lookup
 from reading_export import export_reading_pdf, reading_export_process, page_numbers
@@ -662,11 +663,12 @@ class PersonalDefinitionDialog(QDialog):
 
 
 class VocabularyExportDialog(QDialog):
-    def __init__(self, owner):
+    def __init__(self, owner, record=None, dedupe=True):
         super().__init__(owner)
         self.owner = owner
-        self.record = copy.deepcopy(owner.record)
-        self.selected_ids = {item.data(Qt.ItemDataRole.UserRole) for item in owner.mark_list.selectedItems()}
+        self.record = copy.deepcopy(record if record is not None else owner.record)
+        self.selected_ids = ({item.data(Qt.ItemDataRole.UserRole) for item in owner.mark_list.selectedItems()}
+                             if record is None else set())
         self.edits = {}
         self.setWindowTitle('导出单词释义表 PDF')
         self.resize(860, 670)
@@ -675,12 +677,12 @@ class VocabularyExportDialog(QDialog):
         layout.addWidget(muted('释义来自离线词典；双击右列或点击「编辑释义」可调整本次导出的内容。'))
         options = QHBoxLayout()
         self.scope = QComboBox()
-        self.scope.addItem('当前 PDF 全部标记', None)
+        self.scope.addItem('所选文件全部标记' if record is not None else '当前 PDF 全部标记', None)
         if self.selected_ids:
             self.scope.addItem(f'仅导出选中的 {len(self.selected_ids)} 条标记', 'selected')
         options.addWidget(self.scope, 1)
         self.dedupe = QCheckBox('合并相同拼写的词条')
-        self.dedupe.setChecked(True)
+        self.dedupe.setChecked(dedupe)
         options.addWidget(self.dedupe)
         layout.addLayout(options)
         self.table = QTableWidget(0, 2)
@@ -756,15 +758,8 @@ class VocabularyExportDialog(QDialog):
         if not path:
             return
         try:
-            if Path(path).resolve().is_relative_to(self.owner.lib.root.resolve()):
-                raise ValueError('请选择文档数据目录以外的位置，不能覆盖原 PDF。')
-            # The source PDF is stored as a local copy; protect identical
-            # original files selected outside the data folder as well.
-            if Path(path).exists():
-                import hashlib
-                with open(path, 'rb') as stream:
-                    if hashlib.file_digest(stream, 'sha256').hexdigest() == self.record['id']:
-                        raise ValueError('该文件是原 PDF，请使用新的文件名保存。')
+            protect_export_path(path, self.owner.lib.root,
+                                self.record.get('source_ids', [self.record['id']]))
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             try:
                 result = export_vocabulary_pdf(path, self.record['title'], self.export_rows())
@@ -774,6 +769,146 @@ class VocabularyExportDialog(QDialog):
             self.owner.statusBar().showMessage('已导出单词释义表：' + path, 12000)
         except Exception as exc:
             QMessageBox.critical(self, '表格导出失败', str(exc))
+
+
+class MergeExportDialog(QDialog):
+    def __init__(self, owner):
+        super().__init__(owner)
+        self.owner = owner
+        self.records = copy.deepcopy(owner.lib.state['documents'])
+        self.setWindowTitle('合并导出词本 · 多个 PDF')
+        self.resize(950, 680)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel('勾选文档，将收录的单词和词组合并为一个词本'))
+        split = QSplitter()
+        left, right = QWidget(), QWidget()
+        ll, rl = QVBoxLayout(left), QVBoxLayout(right)
+        ll.setContentsMargins(0, 0, 8, 0)
+        rl.setContentsMargins(8, 0, 0, 0)
+        ll.addWidget(QLabel('选择 PDF'))
+        self.files = QListWidget()
+        for index, record in enumerate(self.records):
+            item = QListWidgetItem(f"{record['title']}\n{len(record['marks'])} 个标记")
+            item.setToolTip(record['title'])
+            item.setData(Qt.ItemDataRole.UserRole, index)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if record['marks'] and owner.record
+                               and record['id'] == owner.record['id'] else Qt.CheckState.Unchecked)
+            if not record['marks']:
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
+                item.setToolTip('此文档尚未收录词条。')
+            self.files.addItem(item)
+        ll.addWidget(self.files, 1)
+        row = QHBoxLayout()
+        row.addWidget(button('全选', lambda: self.check_all(True)))
+        row.addWidget(button('取消全选', lambda: self.check_all(False)))
+        ll.addLayout(row)
+        self.title_edit = QLineEdit('合并词本')
+        self.title_edit.setMaxLength(120)
+        self.title_edit.setPlaceholderText('词本名称')
+        rl.addWidget(self.title_edit)
+        self.mode = QComboBox()
+        for label, value in [('按文件分章节 · 保留完整词组（推荐）', 'documents'),
+                             ('合并为一个章节 · 保留完整词组', 'chapter'),
+                             ('按文件及页码分章节 · 保留完整词组', 'pages'),
+                             ('普通模式 · 由墨墨背单词提取单词和短语', 'plain'),
+                             ('原型模式 // · 由墨墨背单词还原原型', 'lemma')]:
+            self.mode.addItem(label, value)
+        rl.addWidget(self.mode)
+        options = QHBoxLayout()
+        self.dedupe = QCheckBox('跨文件合并重复词条')
+        self.dedupe.setChecked(True)
+        self.lower = QCheckBox('全部转为小写')
+        options.addWidget(self.dedupe)
+        options.addWidget(self.lower)
+        rl.addLayout(options)
+        self.preview = QPlainTextEdit()
+        self.preview.setReadOnly(True)
+        self.preview.setFont(QFont('Consolas', 12))
+        rl.addWidget(self.preview, 1)
+        self.count = muted('')
+        rl.addWidget(self.count)
+        rl.addWidget(muted('按文档列表顺序、各 PDF 阅读位置排列；默认保留大小写和词组。\n'
+                          '章节格式用于 TXT；释义 PDF 为合并后的双列表格，可另行编辑释义。'))
+        split.addWidget(left)
+        split.addWidget(right)
+        split.setSizes([300, 620])
+        split.setStretchFactor(1, 1)
+        layout.addWidget(split, 1)
+        actions = QHBoxLayout()
+        self.copy_button = button('复制 TXT 正文', self.copy)
+        self.save_button = button('导出合并 TXT', self.save, True)
+        self.pdf_button = button('预览 / 导出合并释义 PDF', self.export_pdf)
+        for widget in (self.copy_button, self.save_button, self.pdf_button):
+            actions.addWidget(widget)
+        actions.addStretch()
+        actions.addWidget(button('关闭', self.reject))
+        layout.addLayout(actions)
+        self.files.itemChanged.connect(self.refresh)
+        self.mode.currentIndexChanged.connect(self.refresh)
+        self.title_edit.textChanged.connect(self.refresh)
+        self.dedupe.toggled.connect(self.refresh)
+        self.lower.toggled.connect(self.refresh)
+        self.refresh()
+
+    def selected_records(self):
+        return [self.records[self.files.item(i).data(Qt.ItemDataRole.UserRole)]
+                for i in range(self.files.count())
+                if self.files.item(i).checkState() == Qt.CheckState.Checked]
+
+    def check_all(self, checked):
+        self.files.blockSignals(True)
+        try:
+            for i in range(self.files.count()):
+                item = self.files.item(i)
+                if item.flags() & Qt.ItemFlag.ItemIsEnabled:
+                    item.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        finally:
+            self.files.blockSignals(False)
+        self.refresh()
+
+    def refresh(self):
+        records = self.selected_records()
+        body = export_merged_body(records, self.title_edit.text(), self.mode.currentData(),
+                                  self.lower.isChecked(), self.dedupe.isChecked())
+        self.preview.setPlainText(body)
+        count = sum(bool(line) and not line.startswith(('#', '//')) for line in body.splitlines())
+        total = sum(len(record['marks']) for record in records)
+        self.count.setText(f'已选 {len(records)} 个文件 · {total} 个标记 → {count} 个导出词条')
+        for widget in (self.copy_button, self.save_button, self.pdf_button):
+            widget.setEnabled(bool(count))
+        self.pdf_button.setEnabled(bool(count) and self.owner.dictionary.ready)
+
+    def copy(self):
+        if self.preview.toPlainText():
+            QApplication.clipboard().setText(self.preview.toPlainText())
+            self.count.setText('已复制合并词本，可粘贴到云词本正文。')
+
+    def save(self):
+        body = self.preview.toPlainText()
+        if not body:
+            return
+        (APP_ROOT / 'exports').mkdir(exist_ok=True)
+        path, _ = QFileDialog.getSaveFileName(self, '保存合并词本 TXT',
+            str(APP_ROOT / 'exports' / (safe_name(self.title_edit.text()) + '_合并词本.txt')), '文本文件 (*.txt)')
+        if path:
+            try:
+                protect_export_path(path, self.owner.lib.root, [r['id'] for r in self.selected_records()])
+                write_export_text(path, body)
+                self.count.setText('已保存：' + path)
+                self.owner.statusBar().showMessage('已导出合并词本：' + path, 12000)
+            except Exception as exc:
+                QMessageBox.critical(self, '合并导出失败', str(exc))
+
+    def export_pdf(self):
+        records = self.selected_records()
+        if not records or not self.owner.dictionary.ready:
+            return
+        record = merged_record(records, self.title_edit.text(), self.lower.isChecked())
+        try:
+            VocabularyExportDialog(self.owner, record, self.dedupe.isChecked()).exec()
+        except Exception as exc:
+            QMessageBox.critical(self, '无法准备合并释义表', str(exc))
 
 
 class ReadingExportWorker(QThread):
@@ -924,6 +1059,8 @@ class MainWindow(QMainWindow):
         lr.addWidget(button('重命名', self.rename_doc))
         lr.addWidget(button('移除', self.remove_doc))
         ll.addLayout(lr)
+        self.merge_export_button = button('合并导出词本 · 多文件', self.export_merged)
+        ll.addWidget(self.merge_export_button)
         ll.addWidget(muted('PDF 副本和标记保存在本机。\n原始 PDF 不会被改写。'))
         splitter.addWidget(left)
         center = QWidget()
@@ -1657,6 +1794,12 @@ class MainWindow(QMainWindow):
             (APP_ROOT / 'exports').mkdir(exist_ok=True)
             ExportDialog(self, self.record).exec()
 
+    def export_merged(self):
+        if not any(record['marks'] for record in self.lib.state['documents']):
+            self.statusBar().showMessage('请先在至少一个 PDF 中收录词条。', 5000)
+            return
+        MergeExportDialog(self).exec()
+
     def export_vocabulary(self):
         if not self.has_marks():
             return
@@ -1861,6 +2004,7 @@ class MainWindow(QMainWindow):
             '工具按钮全部展开；默认 1–7 依次切换选词、高亮、下划线、画笔、框、备注、橡皮擦。\n'
             '右上角「设置」可修改工具快捷键；输入框打字时不触发工具切换。\n'
             '右侧「导出收录与批注 PDF」会保存全部收录样式和论文批注。\n'
+            '多文件：左侧「合并导出词本」勾选多个 PDF，可统一去重、按文件分章节，并导出 TXT 或释义 PDF。\n'
             '查词：选词后右侧显示离线中文释义，也可手动输入查词。\n'
             '个人释义：点击词典下方「编辑 / 补充释义」可长期保存自己的解释，释义表也会使用它。\n'
             '阅读：默认单页连续滚动，顶部可切换「双页并排」。滚动时自动加载附近页面。\n'
@@ -2032,6 +2176,22 @@ def main():
                         vocabulary_rows(personal_record, window.dictionary))
                     with fitz.open(Path(verify_dir, 'personal-vocabulary.pdf')) as personal_pdf:
                         assert '个人论文释义' in ''.join(page.get_text() for page in personal_pdf)
+                    # Merge a second independent document snapshot in the frozen
+                    # runtime, including global dedupe and native PDF output.
+                    before_merge = copy.deepcopy(window.record)
+                    other = dict(window.record, id='runtime-second-document', title='第二篇论文',
+                                 marks=[dict(window.record['marks'][0]),
+                                        dict(window.record['marks'][0], id='research-mark', term='research')])
+                    sources = [window.record, other]
+                    combined = export_merged_body(sources)
+                    assert combined.count('\ndiscovery\n') == 1 and '#第二篇论文\nresearch\n' in combined
+                    write_export_text(Path(verify_dir, 'merged.txt'), combined)
+                    export_vocabulary_pdf(Path(verify_dir, 'merged.pdf'), '合并词本',
+                        vocabulary_rows(merged_record(sources), window.dictionary))
+                    with fitz.open(Path(verify_dir, 'merged.pdf')) as merged_pdf:
+                        assert all(term in ''.join(p.get_text() for p in merged_pdf)
+                                   for term in ('discovery', 'mother', 'research'))
+                    assert window.record == before_merge
                     window.grab().save(str(Path(verify_dir, 'window.png')))
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': True, 'marks': len(window.record['marks']),
                         'ocr_words': ocr_count, 'columns': window.reader.columns, 'continuous_pages': len(window.reader.boxes),
@@ -2040,7 +2200,7 @@ def main():
                         'reading_export': reading_report, 'reading_background': True,
                         'vocabulary_export': vocabulary_report, 'annotations': 5,
                         'tool_shortcuts': True, 'visible_tools': len(TOOLS),
-                        'personal_dictionary': True, 'visible_notes': True}), encoding='utf-8')
+                        'personal_dictionary': True, 'visible_notes': True, 'merge_export': True}), encoding='utf-8')
                 except Exception as exc:
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': False, 'error': str(exc)}), encoding='utf-8')
                 window.close()

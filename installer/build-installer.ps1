@@ -2,7 +2,7 @@ param(
     [string]$ISCC = 'ISCC.exe',
     [string]$Payload,
     [string]$Output,
-    [string]$Version = '1.11.0'
+    [string]$Version = '1.12.0'
 )
 $ErrorActionPreference = 'Stop'
 $packageRoot = Split-Path -Parent $PSScriptRoot

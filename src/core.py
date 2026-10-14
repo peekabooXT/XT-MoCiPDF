@@ -5,6 +5,8 @@ import re
 import shutil
 import uuid
 import unicodedata
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -43,6 +45,61 @@ def export_body(record, mode='chapter', lower=False, dedupe=True):
         return '\n'.join(f'#{title} · 第 {page + 1} 页\n' + '\n'.join(ts) for page, ts in groups.items()) + '\n'
     prefix = f'#{title}\n' if mode == 'chapter' else '//\n' if mode == 'lemma' else ''
     return prefix + '\n'.join(terms) + '\n'
+
+
+def merged_record(records, title='合并词本', lower=False):
+    """Copy marks in document/read order; never change library records."""
+    marks = []
+    for index, record in enumerate(records):
+        ordered = sorted(record['marks'], key=lambda m: (m['page'], m.get('order', 0), m['created']))
+        for order, mark in enumerate(ordered):
+            marks.append(dict(mark, id=record['id'] + ':' + mark['id'], page=index,
+                              order=order, term=mark['term'].lower() if lower else mark['term']))
+    return {'id': 'merged', 'title': title.strip() or '合并词本', 'marks': marks,
+            'source_ids': [record['id'] for record in records]}
+
+
+def export_merged_body(records, title='合并词本', mode='documents', lower=False, dedupe=True):
+    if mode not in ('documents', 'pages', 'chapter', 'plain', 'lemma'):
+        raise ValueError('不支持的词本格式。')
+    if mode not in ('documents', 'pages'):
+        return export_body(merged_record(records, title, lower), mode, dedupe=dedupe)
+    seen, chapters = set(), []
+    for record in records:
+        marks = []
+        for mark in sorted(record['marks'], key=lambda m: (m['page'], m.get('order', 0), m['created'])):
+            term = mark['term'].lower() if lower else mark['term']
+            if dedupe and term in seen:
+                continue
+            seen.add(term)
+            marks.append(dict(mark, term=term))
+        text = export_body(dict(record, marks=marks), 'chapter' if mode == 'documents' else 'pages', dedupe=False)
+        if text:
+            chapters.append(text)
+    return ''.join(chapters)
+
+
+def protect_export_path(path, data_root, source_ids):
+    path = Path(path)
+    if path.resolve().is_relative_to(Path(data_root).resolve()):
+        raise ValueError('请选择文档数据目录以外的位置，不能覆盖原 PDF 或词库。')
+    if path.exists():
+        with path.open('rb') as stream:
+            if hashlib.file_digest(stream, 'sha256').hexdigest() in source_ids:
+                raise ValueError('该文件是原 PDF，请使用新的文件名保存。')
+
+
+def write_export_text(path, body):
+    """A failed text export leaves an existing target intact."""
+    path = Path(path)
+    handle, temporary = tempfile.mkstemp(prefix='.xt-wordbook-', suffix='.txt', dir=path.parent)
+    try:
+        with os.fdopen(handle, 'w', encoding='utf-8', newline='\n') as stream:
+            stream.write(body)
+        os.replace(temporary, path)
+    finally:
+        if Path(temporary).exists():
+            Path(temporary).unlink()
 
 
 class Library:

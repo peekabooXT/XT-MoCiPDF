@@ -8,7 +8,7 @@ Windows 本地运行，支持连续阅读、双页并排、离线英汉查词、
 
 ## 直接使用
 
-从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) 下载 **Windows 安装包** `XT-ReadTrace-1.11.0-Setup-x64.exe`，双击后按中文向导安装。安装包包含完整离线词典和 OCR 字库，并创建桌面与开始菜单入口，无需安装 Python 或另外下载词典。
+从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) 下载 **Windows 安装包** `XT-ReadTrace-1.12.0-Setup-x64.exe`，双击后按中文向导安装。安装包包含完整离线词典和 OCR 字库，并创建桌面与开始菜单入口，无需安装 Python 或另外下载词典。
 
 也可下载原有 Windows 便携包，完整解压到英文目录，例如 `D:\tools\codex\XT-ReadTrace`，然后双击 **XT阅迹.exe**。日常使用无需联网。
 
@@ -24,6 +24,7 @@ Windows 本地运行，支持连续阅读、双页并排、离线英汉查词、
 - 内置约 77 万条 ECDICT 词条，显示中文释义、音标和词形参考；词组未收录时逐词解释。
 - 导出 UTF-8 墨墨背单词云词本正文，完整保留词组和大小写；可生成保留收录样式和论文批注的 PDF。
 - 导出两列单词释义 PDF：左列英文、右列中文，可预览修改释义、合并重复或只导出选中词条，支持完整长释义分页打印。
+- 左侧「合并导出词本 · 多文件」可勾选多个 PDF，合并导出 TXT 或双列释义 PDF；支持跨文件去重、保留完整词组、按文件或页码分章节。
 - 精读导出支持每行增加 1 / 2 行留白、全部 / 当前 / 指定页码、A4 自动分页，以及可选标记高亮。
 - 离线英文 OCR、加密 PDF、自动保存与本机备份。
 
