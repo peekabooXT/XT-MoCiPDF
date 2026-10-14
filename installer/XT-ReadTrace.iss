@@ -3,7 +3,7 @@
   #define PayloadDir ".."
 #endif
 #ifndef BuildVersion
-  #define BuildVersion "1.13.0"
+  #define BuildVersion "1.13.1"
 #endif
 
 [Setup]
@@ -77,6 +77,7 @@ Source: "{#PayloadDir}\dictionary\LICENSE.txt"; DestDir: "{app}\dictionary"; Fla
 Source: "{#PayloadDir}\tessdata\eng.traineddata"; DestDir: "{app}\tessdata"; Flags: ignoreversion
 Source: "{#PayloadDir}\locales\*.json"; DestDir: "{app}\locales"; Flags: ignoreversion
 Source: "{#PayloadDir}\fonts\*"; DestDir: "{app}\fonts"; Flags: ignoreversion
+Source: "{#PayloadDir}\icons\*"; DestDir: "{app}\icons"; Flags: ignoreversion
 Source: "{#PayloadDir}\src\*.py"; DestDir: "{app}\src"; Flags: ignoreversion
 Source: "{#PayloadDir}\src\*.ps1"; DestDir: "{app}\src"; Flags: ignoreversion
 Source: "{#PayloadDir}\src\requirements.txt"; DestDir: "{app}\src"; Flags: ignoreversion

@@ -6,7 +6,7 @@ XT (XuTao) 的桌面工具，用于阅读英文 PDF、收集词汇和做研究�
 
 ## 安装并启动
 
-从 [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) 下载 XT-ReadTrace-1.13.0-Setup-x64.exe，然后运行安装程序。它包括完整的离线词典、英文OCR数据和运行时间。保持桌面快捷方式选项处于启用状态。已安装的应用程序不需要安装 Python 或帐户。
+从 [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) 下载 XT-ReadTrace-1.13.1-Setup-x64.exe，然后运行安装程序。它包括完整的离线词典、英文OCR数据和运行时间。保持桌面快捷方式选项处于启用状态。已安装的应用程序不需要安装 Python 或帐户。
 
 默认安装文件夹是`D:\tools\codex\XT-ReadTrace`。打开名为 XT 阅迹 的桌面快捷方式，或运行 `XT阅迹.exe`。将 `_internal` 和 `dictionary` 文件夹与可执行文件放在一起。
 
@@ -88,3 +88,5 @@ python -m venv .venv
 该应用程序是独立开发的，不是MAiMemo官方产品。它不会自动登录MAiMemo或上传单词书。离线查找不是全句机器翻译。 OCR、不常见的词汇和复杂的 PDF 布局可能需要检查。
 
 翻译后的界面文本和自述文件是在自动化协助下准备的；以上联系地址欢迎指正。英文自述文件是文档基线。代码标识符、稳定文件名和存储的记录密钥使用一致的项目命名；参见 [Naming conventions](NAMING.md)。
+
+1.13.1: 自由画笔：按住 Ctrl 画直线，按住 Shift 画波浪线。 按住左键拖动连续擦除批注；已收录词条在选词模式下双击取消。

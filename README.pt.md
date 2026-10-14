@@ -6,7 +6,7 @@ Ferramenta de desktop do XT (XuTao) para ler PDFs em inglês, coletar vocabulár
 
 ## Instalar e iniciar
 
-Baixe XT-ReadTrace-1.13.0-Setup-x64.exe de [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) e execute o instalador. Inclui o dicionário offline completo, dados de OCR em inglês e tempo de execução. Mantenha a opção de atalho na área de trabalho ativada. Nenhuma instalação ou conta do Python é necessária para o aplicativo instalado.
+Baixe XT-ReadTrace-1.13.1-Setup-x64.exe de [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) e execute o instalador. Inclui o dicionário offline completo, dados de OCR em inglês e tempo de execução. Mantenha a opção de atalho na área de trabalho ativada. Nenhuma instalação ou conta do Python é necessária para o aplicativo instalado.
 
 A pasta de instalação padrão é `D:\tools\codex\XT-ReadTrace`. Abra o atalho na área de trabalho chamado XT 阅迹 ou execute `XT阅迹.exe`. Mantenha as pastas `_internal` e `dictionary` ao lado do executável.
 
@@ -88,3 +88,5 @@ Obrigado a [Hunan University of Science and Technology](https://www.hnust.edu.cn
 Este aplicativo foi desenvolvido de forma independente e não é um produto oficial MAiMemo. Ele não faz login em MAiMemo nem carrega livros de palavras automaticamente. A pesquisa off-line não é uma tradução automática de frases completas. OCR, vocabulário incomum e layouts complexos de PDF podem exigir verificação.
 
 O texto da interface traduzido e os READMEs foram preparados com assistência automatizada; correções são bem-vindas no endereço de contato acima. O README em inglês é a base da documentação. Identificadores de código, nomes de arquivos estáveis ​​e chaves de registro armazenadas usam nomenclatura de projeto consistente; veja [Naming conventions](NAMING.md).
+
+1.13.1: Caneta livre: mantenha Ctrl para uma linha reta ou Shift para uma linha ondulada. Mantenha o botão esquerdo pressionado e arraste para apagar anotações. Clique duas vezes nas palavras coletadas no modo de leitura para remover as marcas.

@@ -6,7 +6,7 @@ Das Desktop-Tool von XT (XuTao) zum Lesen englischer PDFs, zum Sammeln von Vokab
 
 ## Installieren und starten
 
-Laden Sie XT-ReadTrace-1.13.0-Setup-x64.exe von [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) herunter und führen Sie dann das Installationsprogramm aus. Es umfasst das komplette Offline-Wörterbuch, englische OCR-Daten und Laufzeit. Lassen Sie die Desktop-Verknüpfungsoption aktiviert. Für die installierte App ist keine Python-Installation oder ein Python-Konto erforderlich.
+Laden Sie XT-ReadTrace-1.13.1-Setup-x64.exe von [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) herunter und führen Sie dann das Installationsprogramm aus. Es umfasst das komplette Offline-Wörterbuch, englische OCR-Daten und Laufzeit. Lassen Sie die Desktop-Verknüpfungsoption aktiviert. Für die installierte App ist keine Python-Installation oder ein Python-Konto erforderlich.
 
 Der Standardinstallationsordner ist `D:\tools\codex\XT-ReadTrace`. Öffnen Sie die Desktop-Verknüpfung mit dem Namen XT 阅迹 oder führen Sie `XT阅迹.exe` aus. Behalten Sie die Ordner `_internal` und `dictionary` neben der ausführbaren Datei.
 
@@ -88,3 +88,5 @@ Vielen Dank an [Hunan University of Science and Technology](https://www.hnust.ed
 Diese App wurde unabhängig entwickelt und ist kein offizielles MAiMemo-Produkt. Es erfolgt keine Anmeldung bei MAiMemo oder das automatische Hochladen von Wortbüchern. Bei der Offline-Suche handelt es sich nicht um eine vollständige maschinelle Übersetzung. OCR, ungewöhnlicher Wortschatz und komplexe PDF-Layouts erfordern möglicherweise eine Überprüfung.
 
 Übersetzte Schnittstellentexte und READMEs wurden mit automatisierter Unterstützung erstellt; Korrekturen sind unter der oben genannten Kontaktadresse willkommen. Die englische README-Datei ist die Basisdokumentation. Code-IDs, stabile Dateinamen und gespeicherte Datensatzschlüssel verwenden eine konsistente Projektbenennung; siehe [Naming conventions](NAMING.md).
+
+1.13.1: Freihandstift: Ctrl für eine gerade Linie, Shift für eine Wellenlinie gedrückt halten. Halten Sie die linke Maustaste gedrückt und ziehen Sie, um Anmerkungen zu löschen. Gesammelte Wörter lassen sich im Lesemodus per Doppelklick entfernen.

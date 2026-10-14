@@ -6,7 +6,7 @@ Lo strumento desktop di XT (XuTao) per leggere PDF in inglese, raccogliere vocab
 
 ## Installa e avvia
 
-Scarica XT-ReadTrace-1.13.0-Setup-x64.exe da [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), quindi esegui il programma di installazione. Include il dizionario offline completo, i dati OCR inglesi e il runtime. Mantieni abilitata l'opzione di collegamento sul desktop. Non è richiesta alcuna installazione o account Python per l'app installata.
+Scarica XT-ReadTrace-1.13.1-Setup-x64.exe da [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), quindi esegui il programma di installazione. Include il dizionario offline completo, i dati OCR inglesi e il runtime. Mantieni abilitata l'opzione di collegamento sul desktop. Non è richiesta alcuna installazione o account Python per l'app installata.
 
 La cartella di installazione predefinita è `D:\tools\codex\XT-ReadTrace`. Apri il collegamento sul desktop denominato XT 阅迹 o esegui `XT阅迹.exe`. Conserva le cartelle `_internal` e `dictionary` insieme all'eseguibile.
 
@@ -88,3 +88,5 @@ Grazie a [Hunan University of Science and Technology](https://www.hnust.edu.cn/)
 Questa app è sviluppata in modo indipendente e non è un prodotto MAiMemo ufficiale. Non accede a MAiMemo né carica automaticamente i libri di parole. La ricerca offline non è una traduzione automatica dell'intera frase. OCR, vocabolario non comune e layout PDF complessi potrebbero richiedere un controllo.
 
 Il testo dell'interfaccia tradotto e i README sono stati preparati con l'assistenza automatizzata; le correzioni sono benvenute all'indirizzo di contatto sopra. Il README inglese è la base della documentazione. Gli identificatori di codice, i nomi di file stabili e le chiavi di record archiviate utilizzano nomi di progetto coerenti; vedere [Naming conventions](NAMING.md).
+
+1.13.1: Penna libera: tieni premuto Ctrl per una linea retta o Shift per una linea ondulata. Tieni premuto il pulsante sinistro e trascina per cancellare le annotazioni. Fai doppio clic sulle parole raccolte in modalità lettura per rimuovere i segni.

@@ -6,7 +6,7 @@ La herramienta de escritorio de XT (XuTao) para leer archivos PDF en inglés, re
 
 ## Instalar y ejecutar
 
-Descargue XT-ReadTrace-1.13.0-Setup-x64.exe desde [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) y luego ejecute el instalador. Incluye el diccionario completo sin conexión, datos OCR en inglés y tiempo de ejecución. Mantenga habilitada la opción de acceso directo del escritorio. No se requiere ninguna instalación o cuenta de Python para la aplicación instalada.
+Descargue XT-ReadTrace-1.13.1-Setup-x64.exe desde [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) y luego ejecute el instalador. Incluye el diccionario completo sin conexión, datos OCR en inglés y tiempo de ejecución. Mantenga habilitada la opción de acceso directo del escritorio. No se requiere ninguna instalación o cuenta de Python para la aplicación instalada.
 
 La carpeta de instalación predeterminada es `D:\tools\codex\XT-ReadTrace`. Abra el acceso directo del escritorio llamado XT 阅迹 o ejecute `XT阅迹.exe`. Mantenga las carpetas `_internal` y `dictionary` junto al ejecutable.
 
@@ -88,3 +88,5 @@ Gracias a [Hunan University of Science and Technology](https://www.hnust.edu.cn/
 Esta aplicación se desarrolló de forma independiente y no es un producto oficial MAiMemo. No inicia sesión en MAiMemo ni carga libros de palabras automáticamente. La búsqueda sin conexión no es una traducción automática de oraciones completas. Es posible que sea necesario comprobar el OCR, el vocabulario poco común y los diseños de PDF complejos.
 
 El texto de la interfaz traducido y los archivos README se prepararon con asistencia automatizada; las correcciones son bienvenidas en la dirección de contacto anterior. El archivo README en inglés es la base de documentación. Los identificadores de código, los nombres de archivos estables y las claves de registros almacenados utilizan nombres de proyectos consistentes; ver [Naming conventions](NAMING.md).
+
+1.13.1: Lápiz libre: mantén Ctrl para una línea recta o Shift para una línea ondulada. Mantén pulsado el botón izquierdo y arrastra para borrar anotaciones. Haz doble clic en las palabras recopiladas en modo lectura para quitar sus marcas.

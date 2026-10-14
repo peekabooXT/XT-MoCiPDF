@@ -3,6 +3,7 @@ from i18n import tr
 import os
 import sys
 import copy
+import math
 import multiprocessing
 import queue
 import uuid
@@ -11,7 +12,7 @@ from pathlib import Path
 
 import pymupdf as fitz
 from PySide6.QtCore import Qt, Signal, QRectF, QPointF, QTimer, QThread, QLockFile, QEvent, QEventLoop
-from PySide6.QtGui import QColor, QPainter, QImage, QPixmap, QFont, QFontDatabase, QShortcut, QKeySequence, QIcon, QMouseEvent, QPen, QPainterPath, QKeyEvent, QTransform
+from PySide6.QtGui import QColor, QPainter, QImage, QPixmap, QFont, QFontDatabase, QShortcut, QKeySequence, QIcon, QMouseEvent, QPen, QPainterPath, QKeyEvent, QTransform, QCursor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QListWidget, QListWidgetItem, QLineEdit, QScrollArea, QSplitter,
     QSpinBox, QComboBox, QCheckBox, QFileDialog, QInputDialog, QMessageBox, QDialog,
@@ -51,6 +52,11 @@ QPushButton#annotationTool:checked { color: white; background: #087f73; border-c
 QPushButton#primary { background: #087f73; color: white; border: none; font-weight: 600; }
 QPushButton#primary:hover { background: #066a60; }
 QLineEdit, QSpinBox, QComboBox, QPlainTextEdit { background: white; border: 1px solid #d5e0e3; border-radius: 6px; padding: 7px; selection-background-color: #087f73; }
+QSpinBox { padding-right: 23px; }
+QSpinBox::up-button, QSpinBox::down-button { subcontrol-origin: border; width: 19px; border: 1px solid #b9cbd0; background: #f5f8f9; border-radius: 3px; }
+QSpinBox::up-button { subcontrol-position: top right; margin: 2px 2px 1px 0; }
+QSpinBox::down-button { subcontrol-position: bottom right; margin: 1px 2px 2px 0; }
+QSpinBox::up-button:hover, QSpinBox::down-button:hover { background: #e0f2ee; border-color: #087f73; }
 QListWidget { background: white; border: 1px solid #e1e8ea; border-radius: 8px; padding: 4px; outline: none; }
 QTextBrowser { background: white; border: 1px solid #e1e8ea; border-radius: 8px; padding: 7px; }
 QListWidget::item { border-radius: 5px; padding: 9px 6px; }
@@ -62,6 +68,8 @@ QScrollArea { border: none; background: #e5ebee; }
 QSplitter::handle { background: #edf1f3; width: 5px; }
 QStatusBar { background: white; color: #60767d; }
 '''
+STYLE += '\nQSpinBox::up-arrow { image: url("' + (ASSETS / 'icons' / 'step-up.svg').as_posix() + '"); width: 10px; height: 6px; }'
+STYLE += '\nQSpinBox::down-arrow { image: url("' + (ASSETS / 'icons' / 'step-down.svg').as_posix() + '"); width: 10px; height: 6px; }'
 
 
 def configure_fonts(app):
@@ -112,6 +120,9 @@ class PDFCanvas(QWidget):
         self.selection = []
         self.anchor = None
         self.dragging = False
+        self.ink_points = []
+        self.eraser_point = None
+        self.eraser_cursors = {}
         self.page_no = 0
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -181,15 +192,83 @@ class PDFCanvas(QWidget):
         return [q.x, q.y]
 
     def set_tool(self, tool, color, width):
-        self.tool, self.color, self.pen_width = tool, color, width
         self.cancel_draft()
-        self.setCursor(Qt.CursorShape.IBeamCursor if tool in ('select', 'highlight', 'underline')
+        self.tool, self.color, self.pen_width = tool, color, width
+        self.update_cursor()
+
+    def update_cursor(self, pressed=False):
+        if self.tool == 'erase':
+            if pressed not in self.eraser_cursors:
+                pixmap = QPixmap(32, 32)
+                pixmap.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(pixmap)
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                path = QPainterPath()
+                path.moveTo(6, 19)
+                for x, y in ((17, 6), (27, 14), (16, 27), (6, 19)):
+                    path.lineTo(x, y)
+                painter.setPen(QPen(QColor('#233a41'), 1.5))
+                painter.setBrush(QColor('#233a41' if pressed else '#ffffff'))
+                painter.drawPath(path)
+                painter.setPen(QPen(QColor('#ffffff' if pressed else '#a5b2b6'), 1))
+                painter.drawLine(QPointF(10, 15), QPointF(20, 23))
+                painter.end()
+                self.eraser_cursors[pressed] = QCursor(pixmap, 16, 16)
+            self.setCursor(self.eraser_cursors[pressed])
+            return
+        self.setCursor(Qt.CursorShape.IBeamCursor if self.tool in ('select', 'highlight', 'underline')
                        else Qt.CursorShape.CrossCursor)
 
     def cancel_draft(self):
+        if self.tool == 'erase' and self.dragging:
+            self.annotation_requested.emit({'erase_end': True})
         self.draft, self.dragging, self.anchor = None, False, None
+        self.ink_points = []
+        self.eraser_point = None
         self.selection = []
+        self.update_cursor()
         self.update()
+
+    def update_ink(self, point, modifiers):
+        if not self.ink_points or math.dist(self.ink_points[-1], point) >= .5:
+            self.ink_points.append(point)
+        start = self.ink_points[0]
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            self.draft['points'] = [start, point]
+        elif modifiers & Qt.KeyboardModifier.ShiftModifier:
+            length = math.dist(start, point)
+            if length < 1:
+                self.draft['points'] = [start, point]
+            else:
+                dx, dy = (point[0] - start[0]) / length, (point[1] - start[1]) / length
+                cycles = max(1, round(length / 14))
+                count = max(12, math.ceil(length / 1.5))
+                amplitude = max(2, self.pen_width * 1.5)
+                self.draft['points'] = []
+                for index in range(count + 1):
+                    t = index / count
+                    offset = amplitude * math.sin(t * cycles * 2 * math.pi)
+                    self.draft['points'].append([start[0] + dx * length * t - dy * offset,
+                                                start[1] + dy * length * t + dx * offset])
+        else:
+            self.draft['points'] = list(self.ink_points)
+        self.update()
+
+    def keyPressEvent(self, event):
+        if self.draft and self.draft['type'] == 'ink' and event.key() in (Qt.Key.Key_Control, Qt.Key.Key_Shift):
+            modifier = Qt.KeyboardModifier.ControlModifier if event.key() == Qt.Key.Key_Control else Qt.KeyboardModifier.ShiftModifier
+            self.update_ink(self.ink_points[-1], event.modifiers() | modifier)
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event):
+        if self.draft and self.draft['type'] == 'ink' and event.key() in (Qt.Key.Key_Control, Qt.Key.Key_Shift):
+            modifier = Qt.KeyboardModifier.ControlModifier if event.key() == Qt.Key.Key_Control else Qt.KeyboardModifier.ShiftModifier
+            self.update_ink(self.ink_points[-1], event.modifiers() & ~modifier)
+            event.accept()
+            return
+        super().keyReleaseEvent(event)
 
     def paint_annotation(self, p, item):
         p.save()
@@ -247,7 +326,10 @@ class PDFCanvas(QWidget):
             self.setFocus()
             point = self.pdf_point(event.position())
             if self.tool == 'erase':
-                self.annotation_requested.emit({'erase': point})
+                self.dragging = True
+                self.eraser_point = point
+                self.update_cursor(True)
+                self.annotation_requested.emit({'erase': point, 'erase_start': True})
                 return
             if self.tool == 'note':
                 found = annotation_at([a for a in self.annotations if a['type'] == 'note'], point, page_rect=self.page_bounds)
@@ -257,6 +339,7 @@ class PDFCanvas(QWidget):
                 return
             if self.tool in ('ink', 'rect'):
                 self.dragging = True
+                self.ink_points = [point]
                 self.draft = {'type': self.tool, 'color': self.color, 'width': self.pen_width,
                               'points': [point], 'rect': [*point, *point]}
                 return
@@ -268,6 +351,11 @@ class PDFCanvas(QWidget):
             self.update()
 
     def mouseMoveEvent(self, event):
+        if self.tool == 'erase' and self.dragging:
+            point = self.pdf_point(event.position())
+            self.annotation_requested.emit({'erase': point, 'erase_from': self.eraser_point})
+            self.eraser_point = point
+            return
         if not self.dragging:
             found = annotation_at(self.annotations, self.pdf_point(event.position()), page_rect=self.page_bounds)
             self.setToolTip(found.get('text', '') if found else '')
@@ -275,9 +363,7 @@ class PDFCanvas(QWidget):
         if self.draft:
             point = self.pdf_point(event.position())
             if self.tool == 'ink':
-                last = self.draft['points'][-1]
-                if abs(last[0] - point[0]) + abs(last[1] - point[1]) >= .5:
-                    self.draft['points'].append(point)
+                self.update_ink(point, event.modifiers())
             elif self.tool == 'rect':
                 a = self.draft['points'][0]
                 self.draft['rect'] = [min(a[0], point[0]), min(a[1], point[1]),
@@ -296,6 +382,11 @@ class PDFCanvas(QWidget):
             return
         self.mouseMoveEvent(event)
         self.dragging = False
+        if self.tool == 'erase':
+            self.annotation_requested.emit({'erase_end': True})
+            self.eraser_point = None
+            self.update_cursor()
+            return
         if self.draft:
             item, self.draft = self.draft, None
             if item['type'] != 'rect' or (fitz.Rect(item['rect']).width > 2 and fitz.Rect(item['rect']).height > 2):
@@ -1119,6 +1210,7 @@ class MainWindow(QMainWindow):
         annotation_row.setSpacing(5)
         self.annotation_tool.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         annotation_row.addWidget(self.annotation_tool)
+        annotation_row.addStretch(1)
         self.annotation_color = QComboBox()
         for label, color in [(tr('金黄'), '#f4c542'), (tr('珊瑚红'), '#e87070'), (tr('湖蓝'), '#4799de'),
                               (tr('紫色'), '#a077d8'), (tr('绿色'), '#46a886')]:
@@ -1137,7 +1229,6 @@ class MainWindow(QMainWindow):
         annotation_row.addWidget(self.redo_annotation_button)
         self.manage_annotation_button = button(tr('批注 · 0'), self.manage_annotations)
         annotation_row.addWidget(self.manage_annotation_button)
-        annotation_row.addStretch()
         self.annotation_navigation = QScrollArea()
         self.annotation_navigation.setObjectName('annotationNavigation')
         self.annotation_navigation.setStyleSheet('QScrollArea#annotationNavigation { background: transparent; border: none; }')
@@ -1352,7 +1443,9 @@ class MainWindow(QMainWindow):
         self.term_edit.clear()
         self.add_button.setEnabled(self.annotation_tool.currentData() == 'select')
         if self.annotation_tool.currentData() == 'erase':
-            self.statusBar().showMessage(tr('单击删除普通批注；已收录词条在选词模式下双击取消。'), 7000)
+            self.statusBar().showMessage(tr('按住左键拖动连续擦除批注；已收录词条在选词模式下双击取消。'), 7000)
+        elif self.annotation_tool.currentData() == 'ink':
+            self.statusBar().showMessage(tr('自由画笔：按住 Ctrl 画直线，按住 Shift 画波浪线。'), 7000)
 
     def refresh_annotation_controls(self):
         history = self.annotation_history.get(self.record['id'], ([], [])) if self.record else ([], [])
@@ -1381,13 +1474,34 @@ class MainWindow(QMainWindow):
     def annotation_action(self, page_no, action):
         if not self.record:
             return
+        if 'erase_end' in action:
+            before = getattr(self, 'erase_before', None)
+            if before is not None and before != self.record.get('annotations', []):
+                undo, redo = self.annotation_history.setdefault(self.record['id'], ([], []))
+                undo.append(before)
+                del undo[:-100]
+                redo.clear()
+            self.erase_before = None
+            self.refresh_annotation_controls()
+            return
         self.set_active_page(page_no)
         items = copy.deepcopy(self.record.get('annotations', []))
         if 'erase' in action:
-            found = annotation_at([a for a in items if a['page'] == page_no], action['erase'],
-                                  max(3, 6 / self.reader.scale), self.canvas.page_bounds)
-            if found:
-                self.commit_annotations([a for a in items if a['id'] != found['id']])
+            if action.get('erase_start'):
+                self.erase_before = copy.deepcopy(items)
+            end = action['erase']
+            start = action.get('erase_from') or end
+            tolerance = max(3, 6 / self.reader.scale)
+            steps = max(1, math.ceil(math.dist(start, end) / tolerance))
+            for index in range(steps + 1):
+                point = [start[axis] + (end[axis] - start[axis]) * index / steps for axis in (0, 1)]
+                while True:
+                    found = annotation_at([a for a in items if a['page'] == page_no], point,
+                                          tolerance, self.canvas.page_bounds)
+                    if not found:
+                        break
+                    items = [a for a in items if a['id'] != found['id']]
+            self.commit_annotations(items, history=getattr(self, 'erase_before', None) is None)
             return
         if 'edit' in action:
             item = next((a for a in items if a['id'] == action['edit']), None)
@@ -1751,12 +1865,18 @@ class MainWindow(QMainWindow):
         self.mark_list.clear()
         marks = self.record['marks'] if self.record else []
         query = self.mark_filter.text().casefold()
-        self.mark_count.setText(tr('本篇词本 · {arg0} 个标记', arg0=len(marks)))
+        groups = {}
         for mark in sorted(marks, key=lambda m: (m['page'], m.get('order', 0), m['created'])):
+            groups.setdefault(clean_term(mark['term']), []).append(mark)
+        self.mark_count.setText(tr('本篇词本 · {arg0} 个词条 · {arg1} 个标记', arg0=len(groups), arg1=len(marks)))
+        for group in groups.values():
+            mark = group[0]
             if query not in mark['term'].casefold():
                 continue
-            item = QListWidgetItem(tr('{arg0}\n第 {arg1} 页', arg0=mark['term'], arg1=mark['page'] + 1))
+            pages = ', '.join(str(page + 1) for page in sorted({entry['page'] for entry in group}))
+            item = QListWidgetItem(tr('{arg0}\n第 {arg1} 页', arg0=mark['term'], arg1=pages))
             item.setData(Qt.ItemDataRole.UserRole, mark['id'])
+            item.setData(Qt.ItemDataRole.UserRole + 1, [entry['id'] for entry in group])
             item.setToolTip(mark['term'])
             item.setForeground(QColor(COLLECTED_COLOR))
             font = item.font()
@@ -1790,17 +1910,22 @@ class MainWindow(QMainWindow):
         text, ok = QInputDialog.getText(self, tr('编辑词条'), tr('修正英文单词或词组'), text=mark['term'])
         if ok:
             try:
-                previous = mark['term']
-                mark['term'] = validate_term(text)
+                term = validate_term(text)
+                ids = set(items[0].data(Qt.ItemDataRole.UserRole + 1) or [mark['id']])
+                previous = [(entry, entry['term']) for entry in self.record['marks'] if entry['id'] in ids]
+                for entry, _ in previous:
+                    entry['term'] = term
                 if not self.persist():
-                    mark['term'] = previous
+                    for entry, old_term in previous:
+                        entry['term'] = old_term
                 self.refresh_marks()
                 self.lookup_term(mark['term'])
             except ValueError as exc:
                 QMessageBox.warning(self, tr('词条不正确'), str(exc))
 
     def delete_marks(self):
-        ids = {i.data(Qt.ItemDataRole.UserRole) for i in self.mark_list.selectedItems()}
+        ids = {entry_id for item in self.mark_list.selectedItems()
+               for entry_id in (item.data(Qt.ItemDataRole.UserRole + 1) or [item.data(Qt.ItemDataRole.UserRole)])}
         self.remove_mark_ids(ids)
 
     def remove_mark_ids(self, ids):

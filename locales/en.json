@@ -348,5 +348,8 @@
   "预览 / 导出合并释义 PDF": "Preview / Export merged meanings PDF",
   "默认为英语。保存后立即切换，并记住你的常用语言。PDF 正文、词条和个人释义保持原内容。": "English is the default. Save to switch immediately and remember your preferred language. PDF text, words and personal meanings stay unchanged.",
   "（续页）": "(continued)",
-  "（英文释义）<br>": "(English definition)<br>"
+  "（英文释义）<br>": "(English definition)<br>",
+  "按住左键拖动连续擦除批注；已收录词条在选词模式下双击取消。": "Hold the left mouse button and drag to erase annotations. Double-click collected words in Select / Read mode to remove their marks.",
+  "自由画笔：按住 Ctrl 画直线，按住 Shift 画波浪线。": "Freehand pen: hold Ctrl for a straight line or Shift for a wavy line.",
+  "本篇词本 · {arg0} 个词条 · {arg1} 个标记": "Wordbook · {arg0} terms · {arg1} marks"
 }

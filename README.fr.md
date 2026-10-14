@@ -6,7 +6,7 @@ L'outil de bureau de XT (XuTao) pour lire des PDF en anglais, collecter du vocab
 
 ## Installer et lancer
 
-Téléchargez XT-ReadTrace-1.13.0-Setup-x64.exe depuis [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), puis exécutez le programme d'installation. Il comprend le dictionnaire hors ligne complet, les données OCR en anglais et le runtime. Gardez l'option de raccourci sur le bureau activée. Aucune installation ou compte Python n'est requis pour l'application installée.
+Téléchargez XT-ReadTrace-1.13.1-Setup-x64.exe depuis [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), puis exécutez le programme d'installation. Il comprend le dictionnaire hors ligne complet, les données OCR en anglais et le runtime. Gardez l'option de raccourci sur le bureau activée. Aucune installation ou compte Python n'est requis pour l'application installée.
 
 Le dossier d'installation par défaut est `D:\tools\codex\XT-ReadTrace`. Ouvrez le raccourci sur le bureau nommé XT 阅迹 ou exécutez `XT阅迹.exe`. Conservez les dossiers `_internal` et `dictionary` à côté de l'exécutable.
 
@@ -88,3 +88,5 @@ Merci à [Hunan University of Science and Technology](https://www.hnust.edu.cn/)
 Cette application est développée indépendamment et n'est pas un produit officiel MAiMemo. Il ne se connecte pas à MAiMemo et ne télécharge pas automatiquement les manuels de mots. La recherche hors ligne n’est pas une traduction automatique de phrases complètes. L'OCR, le vocabulaire peu courant et les mises en page PDF complexes peuvent nécessiter une vérification.
 
 Le texte de l'interface traduit et les README ont été préparés avec une assistance automatisée ; les corrections sont les bienvenues à l’adresse de contact ci-dessus. Le fichier README en anglais constitue la base de la documentation. Les identifiants de code, les noms de fichiers stables et les clés d'enregistrement stockées utilisent une dénomination de projet cohérente ; voir [Naming conventions](NAMING.md).
+
+1.13.1: Stylo libre : maintenez Ctrl pour une ligne droite ou Shift pour une ligne ondulée. Maintenez le bouton gauche et faites glisser pour effacer les annotations. Double-cliquez sur les mots collectés en mode lecture pour retirer leurs marques.

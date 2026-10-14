@@ -347,5 +347,8 @@
   "预览 / 导出合并释义 PDF": "Vista previa/Exportar explicación combinada PDF",
   "默认为英语。保存后立即切换，并记住你的常用语言。PDF 正文、词条和个人释义保持原内容。": "El valor predeterminado es el inglés. Cambie inmediatamente después de guardar y recuerde sus idiomas habituales. El texto en PDF, las entradas y las interpretaciones personales siguen siendo originales.",
   "（续页）": "(página continúa)",
-  "（英文释义）<br>": "(Significado en inglés) <br>"
+  "（英文释义）<br>": "(Significado en inglés) <br>",
+  "按住左键拖动连续擦除批注；已收录词条在选词模式下双击取消。": "Mantén pulsado el botón izquierdo y arrastra para borrar anotaciones. Haz doble clic en las palabras recopiladas en modo lectura para quitar sus marcas.",
+  "自由画笔：按住 Ctrl 画直线，按住 Shift 画波浪线。": "Lápiz libre: mantén Ctrl para una línea recta o Shift para una línea ondulada.",
+  "本篇词本 · {arg0} 个词条 · {arg1} 个标记": "Vocabulario · {arg0} términos · {arg1} marcas"
 }
