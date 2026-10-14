@@ -181,11 +181,11 @@ w.lib.save = save
 destination = qa / 'annotated.pdf'
 w.write_highlight_pdf(destination)
 with fitz.open(source) as original, fitz.open(destination) as annotated:
-    assert original[0].get_text() == annotated[0].get_text()
+    assert annotated[0].get_text().startswith(original[0].get_text())
     annots = [(a.type[0], a.info['content']) for page in annotated for a in (page.annots() or [])]
     assert len(annots) == 1 + len(w.record['marks']) + len(w.record['annotations'])
     types = {a[0] for a in annots}
-    assert {fitz.PDF_ANNOT_TEXT, fitz.PDF_ANNOT_INK, fitz.PDF_ANNOT_SQUARE,
+    assert {fitz.PDF_ANNOT_TEXT, fitz.PDF_ANNOT_FREE_TEXT, fitz.PDF_ANNOT_INK, fitz.PDF_ANNOT_SQUARE,
             fitz.PDF_ANNOT_HIGHLIGHT, fitz.PDF_ANNOT_UNDERLINE} <= types
     texts = [a[1] for a in annots]
     assert 'Existing original note' in texts and any('完整中文' in text for text in texts)

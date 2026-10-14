@@ -8,7 +8,7 @@ Windows 本地运行，支持连续阅读、双页并排、离线英汉查词、
 
 ## 直接使用
 
-从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) 下载 **Windows 安装包** `XT-ReadTrace-1.10.0-Setup-x64.exe`，双击后按中文向导安装。安装包包含完整离线词典和 OCR 字库，并创建桌面与开始菜单入口，无需安装 Python 或另外下载词典。
+从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) 下载 **Windows 安装包** `XT-ReadTrace-1.11.0-Setup-x64.exe`，双击后按中文向导安装。安装包包含完整离线词典和 OCR 字库，并创建桌面与开始菜单入口，无需安装 Python 或另外下载词典。
 
 也可下载原有 Windows 便携包，完整解压到英文目录，例如 `D:\tools\codex\XT-ReadTrace`，然后双击 **XT阅迹.exe**。日常使用无需联网。
 
@@ -84,3 +84,7 @@ python -m venv .venv
 ## 个人释义
 
 词典区域的「编辑 / 补充释义」可给未收录词组补充多行解释，也可修改已有词条，音标可选。保存的个人释义跨 PDF 共用，重开后仍有效，查词与两列单词释义表优先使用。数据保存在个人 data/library.json，随 data 备份迁移；内置词典保持只读。可确认恢复内置释义。
+
+## 可见文字备注
+
+文字备注直接显示为页面上的文本框，支持中文、多行与自动换行，按内容扩展并在长备注时适当调整字号。已有备注使用新样式显示，数据无需重新添加。选词模式双击文本框编辑，橡皮擦可在整个框内删除；缩放与旋转时保持位置。批注 PDF 导出保留可见自由文本与完整注释内容。

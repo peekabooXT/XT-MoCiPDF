@@ -3,6 +3,8 @@ import hashlib
 import math
 import os
 import re
+import html
+from functools import lru_cache
 import tempfile
 from pathlib import Path
 
@@ -43,7 +45,66 @@ def distance_to_segment(point, a, b):
     return math.hypot(point[0] - a[0] - t * dx, point[1] - a[1] - t * dy)
 
 
-def annotation_at(annotations, point, tolerance=5):
+def note_html(text):
+    return html.escape(text).replace('\n', '<br>')
+
+
+def note_style(fontsize):
+    return f'font-family:sans-serif; font-size:{fontsize}pt; line-height:1.35; color:#233a41;'
+
+
+@lru_cache(maxsize=256)
+def _note_geometry(text, anchor, bounds, preferred):
+    page = fitz.Rect(bounds)
+    margin = min(6, page.width / 10, page.height / 10)
+    max_width, max_height = page.width - margin * 2, page.height - margin * 2
+    width = min(240, max_width)
+    height = 32
+    fontsize = preferred
+    # Widen a long note before reducing type size. Full content remains in the
+    # standard PDF annotation even in exceptionally large notes.
+    for fontsize in (preferred, 10, 9, 8, 7, 6, 5):
+        for width in (min(240, max_width), max_width):
+            story = fitz.Story(html=note_html(text), user_css='body { margin:6pt; ' + note_style(fontsize) + ' }')
+            more, filled = story.place(fitz.Rect(0, 0, width, max_height))
+            height = min(max_height, max(32, math.ceil(filled[3]) + 6))
+            if not more:
+                break
+        if not more:
+            break
+    x = max(page.x0 + margin, min(anchor[0], page.x1 - margin - width))
+    y = max(page.y0 + margin, min(anchor[1], page.y1 - margin - height))
+    return (x, y, x + width, y + height), fontsize
+
+
+def note_layout(item, page_rect):
+    bounds, fontsize = _note_geometry(item['text'], tuple(item['rect']), tuple(page_rect), item.get('fontsize', 11))
+    return fitz.Rect(bounds), fontsize
+
+
+def add_visible_note(page, item, rect=None, fontsize=None):
+    if rect is None:
+        rect, fontsize = note_layout(item, fitz.Rect(0, 0, page.cropbox.width, page.cropbox.height))
+    color = color_rgb(item['color'])
+    fill = tuple(.92 + component * .08 for component in color)
+    annot = page.add_freetext_annot(rect, note_html(item['text']), fontsize=fontsize, richtext=True,
+        style=note_style(fontsize), fill_color=fill, border_color=color, border_width=.8)
+    annot.set_info(content=item['text'], title=PROJECT_NAME)
+    # Regenerate after changing Contents: this removes the HTML wrapper's
+    # leading whitespace and preserves all plain-text lines and embedded fonts.
+    annot.update(fontsize=fontsize, text_color=(.137, .227, .255))
+    return annot
+
+
+def render_note(item, page_rect, scale):
+    rect, fontsize = note_layout(item, page_rect)
+    with fitz.open() as doc:
+        page = doc.new_page(width=rect.width, height=rect.height)
+        add_visible_note(page, item, fitz.Rect(0, 0, rect.width, rect.height), fontsize)
+        return rect, page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+
+
+def annotation_at(annotations, point, tolerance=5, page_rect=None):
     for item in reversed(annotations):
         kind = item['type']
         if kind == 'ink':
@@ -60,7 +121,8 @@ def annotation_at(annotations, point, tolerance=5):
                    for a, b in zip(corners, corners[1:])):
                 return item
         elif kind == 'note':
-            if fitz.Rect(item['rect']).contains(point):
+            rect = note_layout(item, page_rect)[0] if page_rect is not None else fitz.Rect(item['rect'])
+            if rect.contains(point):
                 return item
         else:
             for rect in item['rects']:
@@ -139,7 +201,8 @@ def add_reading_annotations(doc, annotations):
         elif kind == 'rect':
             annot = page.add_rect_annot(fitz.Rect(item['rect']))
         elif kind == 'note':
-            annot = page.add_text_annot(fitz.Point(item['rect'][:2]), item['text'], icon='Comment')
+            add_visible_note(page, item)
+            continue
         else:
             raise ValueError('不支持的批注类型：' + kind)
         annot.set_colors(stroke=color_rgb(item['color']))

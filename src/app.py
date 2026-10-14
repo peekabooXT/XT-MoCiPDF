@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pymupdf as fitz
 from PySide6.QtCore import Qt, Signal, QRectF, QPointF, QTimer, QThread, QLockFile, QEvent, QEventLoop
-from PySide6.QtGui import QColor, QPainter, QImage, QPixmap, QFont, QFontDatabase, QShortcut, QKeySequence, QIcon, QMouseEvent, QPen, QPainterPath, QKeyEvent
+from PySide6.QtGui import QColor, QPainter, QImage, QPixmap, QFont, QFontDatabase, QShortcut, QKeySequence, QIcon, QMouseEvent, QPen, QPainterPath, QKeyEvent, QTransform
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QListWidget, QListWidgetItem, QLineEdit, QScrollArea, QSplitter,
     QSpinBox, QComboBox, QCheckBox, QFileDialog, QInputDialog, QMessageBox, QDialog,
@@ -22,7 +22,7 @@ from dictionary import OfflineDictionary, normalize, render_lookup
 from reading_export import export_reading_pdf, reading_export_process, page_numbers
 from vocabulary_export import vocabulary_rows, export_vocabulary_pdf, meaning_text
 from annotations import (COLLECTED_COLOR, KINDS, ink_rgba, annotation_at,
-                         export_annotated_pdf)
+                         export_annotated_pdf, note_layout, render_note)
 from tool_settings import (AnnotationToolBar, ShortcutSettingsDialog, TOOLS, PORTABLE,
                            load_shortcuts, validated_shortcuts)
 
@@ -97,6 +97,8 @@ class PDFCanvas(QWidget):
         self.tool, self.color, self.pen_width = 'select', '#f4c542', 2
         self.draft = None
         self.ink_cache = {}
+        self.note_cache = {}
+        self.page_bounds = fitz.Rect(0, 0, 595, 842)
         self.selection = []
         self.anchor = None
         self.dragging = False
@@ -107,10 +109,12 @@ class PDFCanvas(QWidget):
 
     def set_page(self, page, words, scale, marks):
         self.scale, self.rotation = scale, page.rotation_matrix
+        self.page_bounds = fitz.Rect(0, 0, page.cropbox.width, page.cropbox.height)
         pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
         self.image = QPixmap.fromImage(QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888).copy())
         self.words, self.marks = words, marks
         self.ink_cache.clear()
+        self.note_cache.clear()
         self.selection, self.anchor = [], None
         self.setFixedSize(pix.width, pix.height)
         self.update()
@@ -209,12 +213,17 @@ class PDFCanvas(QWidget):
         elif kind == 'rect':
             p.drawRect(self.screen_rect(item['rect']))
         elif kind == 'note':
-            r = self.screen_rect(item['rect'])
-            p.setBrush(QColor(item['color']))
-            p.drawRoundedRect(r, 3, 3)
-            p.setPen(QColor('#233a41'))
-            p.setFont(QFont('Microsoft YaHei', max(7, int(9 * self.scale))))
-            p.drawText(r, Qt.AlignmentFlag.AlignCenter, '✎')
+            key = (item.get('id', ''), item['text'], item['color'], tuple(item['rect']))
+            if key not in self.note_cache:
+                rect, pix = render_note(item, self.page_bounds, max(1.5, self.scale * 1.5))
+                image = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888).copy()
+                self.note_cache[key] = (rect, QPixmap.fromImage(image))
+            rect, image = self.note_cache[key]
+            m = self.rotation
+            p.setTransform(QTransform(m.a * self.scale, m.b * self.scale, m.c * self.scale,
+                                      m.d * self.scale, m.e * self.scale, m.f * self.scale))
+            p.drawPixmap(QRectF(rect.x0, rect.y0, rect.width, rect.height), image,
+                         QRectF(0, 0, image.width(), image.height()))
         p.restore()
 
     def hit(self, point):
@@ -231,7 +240,7 @@ class PDFCanvas(QWidget):
                 self.annotation_requested.emit({'erase': point})
                 return
             if self.tool == 'note':
-                found = annotation_at([a for a in self.annotations if a['type'] == 'note'], point)
+                found = annotation_at([a for a in self.annotations if a['type'] == 'note'], point, page_rect=self.page_bounds)
                 self.annotation_requested.emit({'edit': found['id']} if found else
                     {'type': 'note', 'rect': [point[0], point[1], point[0] + 18, point[1] + 18],
                      'color': self.color, 'width': self.pen_width})
@@ -250,7 +259,7 @@ class PDFCanvas(QWidget):
 
     def mouseMoveEvent(self, event):
         if not self.dragging:
-            found = annotation_at(self.annotations, self.pdf_point(event.position()))
+            found = annotation_at(self.annotations, self.pdf_point(event.position()), page_rect=self.page_bounds)
             self.setToolTip(found.get('text', '') if found else '')
             return
         if self.draft:
@@ -295,7 +304,7 @@ class PDFCanvas(QWidget):
             return
         self.setFocus()
         note = annotation_at([a for a in self.annotations if a['type'] == 'note'],
-                             self.pdf_point(event.position()))
+                             self.pdf_point(event.position()), page_rect=self.page_bounds)
         if note:
             self.annotation_requested.emit({'edit': note['id']})
             return
@@ -444,6 +453,9 @@ class PDFDocumentView(QWidget):
             canvas.annotations = [a for a in self.owner.record.get('annotations', []) if a['page'] == n]
             used = {tuple(r) for m in canvas.marks for r in m['rects']}
             canvas.ink_cache = {k: v for k, v in canvas.ink_cache.items() if k in used}
+            valid_notes = {(a.get('id', ''), a['text'], a['color'], tuple(a['rect']))
+                           for a in canvas.annotations if a['type'] == 'note'}
+            canvas.note_cache = {k: v for k, v in canvas.note_cache.items() if k in valid_notes}
             canvas.update()
 
     def ensure_rect(self, number, rect):
@@ -1189,7 +1201,7 @@ class MainWindow(QMainWindow):
         items = copy.deepcopy(self.record.get('annotations', []))
         if 'erase' in action:
             found = annotation_at([a for a in items if a['page'] == page_no], action['erase'],
-                                  max(3, 6 / self.reader.scale))
+                                  max(3, 6 / self.reader.scale), self.canvas.page_bounds)
             if found:
                 self.commit_annotations([a for a in items if a['id'] != found['id']])
             return
@@ -1206,7 +1218,8 @@ class MainWindow(QMainWindow):
             if not ok or not text.strip():
                 return
             item['text'] = text.strip()
-            # Keep the note icon fully on-page, even when clicking the edge.
+            # Preserve the legacy anchor; the visible text box is fitted on-page
+            # at render time without rewriting old annotation records.
             bounds = self.doc[page_no].cropbox
             x = max(0, min(bounds.width - 18, item['rect'][0]))
             y = max(0, min(bounds.height - 18, item['rect'][1]))
@@ -1844,6 +1857,7 @@ class MainWindow(QMainWindow):
             '精读：右侧「导出精读 PDF」可生成留空行的打印副本。\n'
             '批注：顶部选择高亮、下划线、画笔、矩形框或文字备注，旁边可选颜色和线宽。\n'
             '批注管理可定位、编辑备注、删除；Ctrl+Z 撤销，Ctrl+Y 重做，Esc 返回选词。\n'
+            '文字备注直接显示为页面文本框，选词模式双击文本框可编辑，导出 PDF 也能直接阅读。\n'
             '工具按钮全部展开；默认 1–7 依次切换选词、高亮、下划线、画笔、框、备注、橡皮擦。\n'
             '右上角「设置」可修改工具快捷键；输入框打字时不触发工具切换。\n'
             '右侧「导出收录与批注 PDF」会保存全部收录样式和论文批注。\n'
@@ -1980,9 +1994,10 @@ def main():
                     with fitz.open(Path(verify_dir, 'annotations.pdf')) as annotated:
                         page = annotated[1]
                         kinds = {a.type[0] for a in page.annots()}
-                        assert {fitz.PDF_ANNOT_TEXT, fitz.PDF_ANNOT_INK, fitz.PDF_ANNOT_SQUARE,
+                        assert {fitz.PDF_ANNOT_FREE_TEXT, fitz.PDF_ANNOT_INK, fitz.PDF_ANNOT_SQUARE,
                                 fitz.PDF_ANNOT_HIGHLIGHT, fitz.PDF_ANNOT_UNDERLINE} <= kinds
                         assert any('中文备注' in a.info['content'] for a in page.annots())
+                        assert '中文备注' in page.get_text()
                     reading_report = export_reading_pdf(window.lib.pdf_path(window.record),
                         Path(verify_dir, 'reading.pdf'), tessdata=TESSDATA,
                         marks=window.record['marks'])
@@ -2025,7 +2040,7 @@ def main():
                         'reading_export': reading_report, 'reading_background': True,
                         'vocabulary_export': vocabulary_report, 'annotations': 5,
                         'tool_shortcuts': True, 'visible_tools': len(TOOLS),
-                        'personal_dictionary': True}), encoding='utf-8')
+                        'personal_dictionary': True, 'visible_notes': True}), encoding='utf-8')
                 except Exception as exc:
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': False, 'error': str(exc)}), encoding='utf-8')
                 window.close()
