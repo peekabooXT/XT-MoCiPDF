@@ -8,7 +8,7 @@ Windows 本地运行，支持连续阅读、双页并排、离线英汉查词、
 
 ## 直接使用
 
-从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) 下载 **Windows 安装包** `XT-ReadTrace-1.9.0-Setup-x64.exe`，双击后按中文向导安装。安装包包含完整离线词典和 OCR 字库，并创建桌面与开始菜单入口，无需安装 Python 或另外下载词典。
+从本私密仓库的 [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) 下载 **Windows 安装包** `XT-ReadTrace-1.10.0-Setup-x64.exe`，双击后按中文向导安装。安装包包含完整离线词典和 OCR 字库，并创建桌面与开始菜单入口，无需安装 Python 或另外下载词典。
 
 也可下载原有 Windows 便携包，完整解压到英文目录，例如 `D:\tools\codex\XT-ReadTrace`，然后双击 **XT阅迹.exe**。日常使用无需联网。
 
@@ -80,3 +80,7 @@ python -m venv .venv
 ## 统一命名与单排导航
 
 产品名为 **XT 阅迹**，项目名为 **XT-ReadTrace**。程序、安装器、目录、仓库、PDF 导出元数据和开发规范统一使用该名称，详见 [命名规范](NAMING.md)。全部工具与颜色、线宽、撤销、重做、批注管理处于同一排；窄窗口可横向滚动，数字快捷键继续有效。
+
+## 个人释义
+
+词典区域的「编辑 / 补充释义」可给未收录词组补充多行解释，也可修改已有词条，音标可选。保存的个人释义跨 PDF 共用，重开后仍有效，查词与两列单词释义表优先使用。数据保存在个人 data/library.json，随 data 备份迁移；内置词典保持只读。可确认恢复内置释义。

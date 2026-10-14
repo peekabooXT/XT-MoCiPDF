@@ -1,4 +1,4 @@
-"""Read-only offline English-Chinese lookup. No network or machine translation."""
+"""Read-only base dictionary with a separate personal definition overlay."""
 import html
 import re
 import sqlite3
@@ -14,8 +14,9 @@ def normalize(text):
 
 
 class OfflineDictionary:
-    def __init__(self, path):
+    def __init__(self, path, overrides=None):
         self.conn = None
+        self.overrides = dict(overrides or {})
         self.error = ''
         self.count = 0
         try:
@@ -32,9 +33,26 @@ class OfflineDictionary:
 
     @property
     def ready(self):
-        return self.conn is not None
+        return self.conn is not None or bool(self.overrides)
+
+    def set_overrides(self, entries):
+        self.overrides = dict(entries)
+        self.lookup.cache_clear()
+
+    def personal_entry(self, text):
+        saved = self.overrides.get(normalize(text))
+        if not saved:
+            return None
+        return {'word': saved['word'], 'translation': saved['translation'],
+                'phonetic': saved.get('phonetic', ''), 'definition': '',
+                'exchange': '', 'tag': '', 'custom': True}
 
     def entry(self, text):
+        personal = self.personal_entry(text)
+        if personal:
+            return personal
+        if self.conn is None:
+            return None
         row = self.conn.execute('SELECT * FROM entries WHERE word=?', (text,)).fetchone()
         if row is None:
             row = self.conn.execute('SELECT * FROM entries WHERE norm=? ORDER BY word=? DESC, length(word), word LIMIT 1',
@@ -44,6 +62,8 @@ class OfflineDictionary:
     def word(self, text):
         norm = normalize(text)
         entry = self.entry(text)
+        if (entry or {}).get('custom') or self.conn is None:
+            return {'query': text, 'entry': entry, 'bases': []}
         forms = self.conn.execute("SELECT DISTINCT base FROM forms WHERE form=? AND base<>? ORDER BY kind='0' DESC, base LIMIT 3",
                                   (norm, norm)).fetchall()
         bases = []
@@ -62,6 +82,8 @@ class OfflineDictionary:
             return {'query': '', 'error': '选中 PDF 单词即可查看释义，也可以输入单词或词组查词。'}
         if len(text) > 240:
             return {'query': text[:240], 'error': '内容较长，请选择一个单词或较短的词组。'}
+        if self.conn is None and not self.personal_entry(text):
+            return {'query': text, 'error': self.error}
         try:
             result = self.word(text)
             if result['entry'] or result['bases']:
@@ -89,7 +111,8 @@ def render_lookup(result):
         meaning = entry['translation'] or entry['definition'] or '暂无释义'
         label = '' if entry['translation'] else '（英文释义）<br>'
         ipa = f" <span style='color:#71858b'>/{escaped(entry['phonetic'])}/</span>" if entry['phonetic'] else ''
-        return f"<p><b>{escaped(entry['word'])}</b>{ipa}<br>{label}{escaped(meaning)}</p>"
+        badge = '<br><span style="color:#087f73">个人释义 · 已保存</span>' if entry.get('custom') else ''
+        return f"<p><b>{escaped(entry['word'])}</b>{ipa}{badge}<br>{label}{escaped(meaning)}</p>"
 
     def word_html(item):
         output = entry_html(item['entry']) if item['entry'] else ''

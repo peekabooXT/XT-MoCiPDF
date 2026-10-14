@@ -18,9 +18,9 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
 
 from core import Library, clean_term, validate_term, export_body
 from branding import APP_NAME, PROJECT_NAME, VERIFY_ENV
-from dictionary import OfflineDictionary, render_lookup
+from dictionary import OfflineDictionary, normalize, render_lookup
 from reading_export import export_reading_pdf, reading_export_process, page_numbers
-from vocabulary_export import vocabulary_rows, export_vocabulary_pdf
+from vocabulary_export import vocabulary_rows, export_vocabulary_pdf, meaning_text
 from annotations import (COLLECTED_COLOR, KINDS, ink_rgba, annotation_at,
                          export_annotated_pdf)
 from tool_settings import (AnnotationToolBar, ShortcutSettingsDialog, TOOLS, PORTABLE,
@@ -607,6 +607,48 @@ def safe_name(title):
     return ''.join('_' if c in '<>:"/\\|?*' else c for c in title).strip(' .')[:120] or '词本'
 
 
+class PersonalDefinitionDialog(QDialog):
+    def __init__(self, owner, term):
+        super().__init__(owner)
+        self.owner = owner
+        self.setWindowTitle('编辑 / 补充个人释义')
+        self.resize(640, 490)
+        layout = QVBoxLayout(self)
+        layout.addWidget(muted('保存到本机个人词典，所有 PDF 共用；查词和单词释义表会优先使用个人释义。'))
+        self.term = QLineEdit(term)
+        self.term.setReadOnly(True)
+        layout.addWidget(QLabel('英文单词 / 词组'))
+        layout.addWidget(self.term)
+        result = owner.dictionary.lookup(term)
+        entry = result.get('entry') or {}
+        self.phonetic = QLineEdit(entry.get('phonetic', ''))
+        self.phonetic.setPlaceholderText('音标（可选，不需要时留空）')
+        layout.addWidget(self.phonetic)
+        layout.addWidget(QLabel('释义 / 阅读说明'))
+        self.meaning = QPlainTextEdit()
+        initial = meaning_text(result) if (result.get('entry') or result.get('bases') or result.get('parts')) else ''
+        self.meaning.setPlainText(initial)
+        self.meaning.setPlaceholderText('例如：捕食者与猎物的关系；可输入中文、英文和多行说明。')
+        layout.addWidget(self.meaning, 1)
+        self.message = QLabel()
+        self.message.setStyleSheet('color: #b64c4c;')
+        layout.addWidget(self.message)
+        row = QHBoxLayout()
+        row.addStretch()
+        row.addWidget(button('取消', self.reject))
+        self.save_button = button('保存个人释义', self.save, True)
+        row.addWidget(self.save_button)
+        layout.addLayout(row)
+
+    def save(self):
+        text = self.meaning.toPlainText().strip()
+        if not text:
+            self.message.setText('请填写释义后保存；取消可以保留原来的内容。')
+            return
+        if self.owner.save_personal_definition(self.term.text(), text, self.phonetic.text()):
+            self.accept()
+
+
 class VocabularyExportDialog(QDialog):
     def __init__(self, owner):
         super().__init__(owner)
@@ -829,7 +871,8 @@ class MainWindow(QMainWindow):
         self.search_cursor = None
         self.annotation_history = {}
         self.tool_shortcuts = load_shortcuts(self.lib.state)
-        self.dictionary = OfflineDictionary(APP_ROOT / 'dictionary' / 'ecdict.sqlite')
+        self.dictionary = OfflineDictionary(APP_ROOT / 'dictionary' / 'ecdict.sqlite',
+                                             self.lib.state.get('dictionary_overrides', {}))
         self.dictionary_pending = ''
         self.dictionary_timer = QTimer(self)
         self.dictionary_timer.setSingleShot(True)
@@ -986,6 +1029,14 @@ class MainWindow(QMainWindow):
         self.dictionary_view.setMaximumHeight(300)
         self.dictionary_view.setHtml(render_lookup(self.dictionary.lookup('')))
         rl.addWidget(self.dictionary_view, 1)
+        dictionary_actions = QHBoxLayout()
+        self.edit_definition_button = button('编辑 / 补充释义', self.edit_personal_definition)
+        self.reset_definition_button = button('恢复词典释义', self.reset_personal_definition)
+        dictionary_actions.addWidget(self.edit_definition_button)
+        dictionary_actions.addWidget(self.reset_definition_button)
+        rl.addLayout(dictionary_actions)
+        self.dictionary_query.textChanged.connect(self.refresh_definition_controls)
+        self.refresh_definition_controls()
         self.mark_count = QLabel('本篇词本 · 0')
         self.mark_count.setStyleSheet('font-size: 15px; font-weight: 600;')
         rl.addWidget(self.mark_count)
@@ -1058,7 +1109,7 @@ class MainWindow(QMainWindow):
 
     def eventFilter(self, watched, event):
         if event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress):
-            if QApplication.activeWindow() is not self:
+            if QApplication.activeModalWidget() is not None or QApplication.activeWindow() is not self:
                 return False
             focus = QApplication.focusWidget()
             while focus is not None and focus is not self:
@@ -1214,6 +1265,60 @@ class MainWindow(QMainWindow):
         self.dictionary_query.setText(clean_term(text)[:240])
         self.dictionary_view.setHtml(render_lookup(self.dictionary.lookup(text)))
         self.dictionary_view.verticalScrollBar().setValue(0)
+        self.refresh_definition_controls()
+
+    def refresh_definition_controls(self):
+        text = self.dictionary_query.text().strip()
+        self.edit_definition_button.setEnabled(bool(text))
+        self.reset_definition_button.setEnabled(bool(self.dictionary.personal_entry(text)))
+
+    def edit_personal_definition(self):
+        try:
+            term = validate_term(self.dictionary_query.text())
+        except ValueError as exc:
+            QMessageBox.warning(self, '请选择英文词条', str(exc))
+            return
+        self.lookup_term(term)
+        PersonalDefinitionDialog(self, term).exec()
+
+    def save_personal_definition(self, term, translation, phonetic=''):
+        try:
+            term = validate_term(term)
+            if not translation.strip():
+                raise ValueError('请填写释义后保存。')
+        except ValueError as exc:
+            QMessageBox.warning(self, '无法保存个人释义', str(exc))
+            return False
+        entries = dict(self.dictionary.overrides)
+        entries[normalize(term)] = {'word': term, 'translation': translation.strip(),
+            'phonetic': phonetic.strip().strip('/'), 'updated': datetime.now().isoformat(timespec='microseconds')}
+        return self.commit_personal_definitions(entries, term)
+
+    def commit_personal_definitions(self, entries, term):
+        previous = copy.deepcopy(self.lib.state.get('dictionary_overrides'))
+        self.lib.state['dictionary_overrides'] = entries
+        if not self.persist():
+            if previous is None:
+                self.lib.state.pop('dictionary_overrides', None)
+            else:
+                self.lib.state['dictionary_overrides'] = previous
+            return False
+        self.dictionary.set_overrides(entries)
+        self.lookup_term(term)
+        self.statusBar().showMessage('个人释义已保存，查词与单词释义表已更新：' + term, 6000)
+        return True
+
+    def reset_personal_definition(self):
+        term = self.dictionary_query.text().strip()
+        if not self.dictionary.personal_entry(term):
+            return
+        choice = QMessageBox.question(self, '恢复词典释义',
+            f'删除「{term}」的个人释义并恢复内置词典内容？未收录词条恢复后将不再显示个人解释。',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if choice == QMessageBox.StandardButton.Yes:
+            entries = dict(self.dictionary.overrides)
+            entries.pop(normalize(term), None)
+            self.commit_personal_definitions(entries, term)
 
     def persist(self):
         try:
@@ -1743,6 +1848,7 @@ class MainWindow(QMainWindow):
             '右上角「设置」可修改工具快捷键；输入框打字时不触发工具切换。\n'
             '右侧「导出收录与批注 PDF」会保存全部收录样式和论文批注。\n'
             '查词：选词后右侧显示离线中文释义，也可手动输入查词。\n'
+            '个人释义：点击词典下方「编辑 / 补充释义」可长期保存自己的解释，释义表也会使用它。\n'
             '阅读：默认单页连续滚动，顶部可切换「双页并排」。滚动时自动加载附近页面。\n'
             '所有 PDF 和标记只在本机保存。备份整个 data 文件夹即可迁移。')
 
@@ -1901,6 +2007,16 @@ def main():
                         page = doc[0]
                         tp = page.get_textpage_ocr(language='eng', dpi=120, full=True, tessdata=str(TESSDATA))
                         ocr_count = len(page.get_text('words', textpage=tp))
+                    assert window.save_personal_definition('predator-prey', '捕食者与猎物的关系；个人论文释义。', 'ˈpredətə preɪ')
+                    assert '个人释义 · 已保存' in window.dictionary_view.toPlainText()
+                    assert window.dictionary.lookup('PREDATOR–PREY')['entry']['custom']
+                    stored = Library(data_root).state['dictionary_overrides']['predator-prey']
+                    assert '个人论文释义' in stored['translation']
+                    personal_record = dict(window.record, marks=[dict(window.record['marks'][0], term='predator-prey')])
+                    export_vocabulary_pdf(Path(verify_dir, 'personal-vocabulary.pdf'), window.record['title'],
+                        vocabulary_rows(personal_record, window.dictionary))
+                    with fitz.open(Path(verify_dir, 'personal-vocabulary.pdf')) as personal_pdf:
+                        assert '个人论文释义' in ''.join(page.get_text() for page in personal_pdf)
                     window.grab().save(str(Path(verify_dir, 'window.png')))
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': True, 'marks': len(window.record['marks']),
                         'ocr_words': ocr_count, 'columns': window.reader.columns, 'continuous_pages': len(window.reader.boxes),
@@ -1908,7 +2024,8 @@ def main():
                         'dictionary_entries': window.dictionary.count,
                         'reading_export': reading_report, 'reading_background': True,
                         'vocabulary_export': vocabulary_report, 'annotations': 5,
-                        'tool_shortcuts': True, 'visible_tools': len(TOOLS)}), encoding='utf-8')
+                        'tool_shortcuts': True, 'visible_tools': len(TOOLS),
+                        'personal_dictionary': True}), encoding='utf-8')
                 except Exception as exc:
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': False, 'error': str(exc)}), encoding='utf-8')
                 window.close()

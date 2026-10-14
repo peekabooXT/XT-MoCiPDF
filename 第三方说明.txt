@@ -1,4 +1,4 @@
-XT 阅迹 / XT-ReadTrace 1.9.0
+XT 阅迹 / XT-ReadTrace 1.10.0
 用户定制的本地 Windows 64 位 PDF 词条收集工具。
 
 依赖：
