@@ -2,11 +2,13 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [한국어](README.ko.md) | [Italiano](README.it.md) | [हिन्दी](README.hi.md) | [Español](README.es.md) | [العربية الفصحى](README.ar.md) | [Português](README.pt.md) | [Русский](README.ru.md)
 
+**1.14.0** — Notizen direkt auf der PDF-Seite eingeben: Ctrl+Enter speichert, Esc bricht ab. Ziehen verschiebt eine Notiz, Doppelklick bearbeitet sie. Der Timer oben kann gestartet, pausiert und zurückgesetzt werden; nach erneutem Öffnen bleibt die gespeicherte Zeit pausiert. Alle Exporte einschließlich mehrerer Dateien finden Sie unten rechts unter Exportieren (Ctrl+E). Bedeutungen lassen sich verdecken und einzeln anzeigen; beim nächsten Nachschlagen werden sie wieder verdeckt. Diese Einstellung wird gespeichert.
+
 Das Desktop-Tool von XT (XuTao) zum Lesen englischer PDFs, zum Sammeln von Vokabeln und zum Erstellen von Forschungsnotizen. Eine Seite lesen, eine Spur hinterlassen.
 
 ## Installieren und starten
 
-Laden Sie XT-ReadTrace-1.13.2-Setup-x64.exe von [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) herunter und führen Sie dann das Installationsprogramm aus. Es umfasst das komplette Offline-Wörterbuch, englische OCR-Daten und Laufzeit. Lassen Sie die Desktop-Verknüpfungsoption aktiviert. Für die installierte App ist keine Python-Installation oder ein Python-Konto erforderlich.
+Laden Sie XT-ReadTrace-1.14.0-Setup-x64.exe von [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) herunter und führen Sie dann das Installationsprogramm aus. Es umfasst das komplette Offline-Wörterbuch, englische OCR-Daten und Laufzeit. Lassen Sie die Desktop-Verknüpfungsoption aktiviert. Für die installierte App ist keine Python-Installation oder ein Python-Konto erforderlich.
 
 Der Standardinstallationsordner ist `D:\tools\codex\XT-ReadTrace`. Öffnen Sie die Desktop-Verknüpfung mit dem Namen XT 阅迹 oder führen Sie `XT阅迹.exe` aus. Behalten Sie die Ordner `_internal` und `dictionary` neben der ausführbaren Datei.
 
@@ -35,7 +37,7 @@ Verwenden Sie „Bearbeiten/Bedeutung hinzufügen“, um Ihre eigene Erklärung 
 ## Exportieren Sie ein PDF oder führen Sie mehrere Wortbücher zusammen
 
 - Wordbook TXT: Exportieren Sie UTF-8-Text, der mit dem Cloud-Wortbuch von MAiMemo kompatibel ist. Der Kapitelmodus behält ein vollständiges Wort oder einen vollständigen Satz pro Zeile bei und behält die Groß-/Kleinschreibung bei. Seitenkapitel, einfacher Text und der `//`-Basisformularmodus sind ebenfalls verfügbar. Die Basisformularverarbeitung wird von MAiMemo durchgeführt.
-- Mehrere PDFs: Klicken Sie unterhalb der Dokumentliste auf „Wortbücher zusammenführen“, überprüfen Sie die Dateien und zeigen Sie eine Vorschau des Ergebnisses an. Wählen Sie alle aus oder löschen Sie die Auswahl nach Bedarf. Entfernen Sie Duplikate aus allen Dateien, konvertieren Sie sie optional in Kleinbuchstaben und exportieren Sie ein einzelnes TXT-Wortbuch. TXT kann Einträge nach Datei, nach Datei und Seite oder in einem Kapitel gruppieren.
+- Mehrere PDFs: Klicken Sie im Exportmenü auf „Wortbücher zusammenführen“, überprüfen Sie die Dateien und zeigen Sie eine Vorschau des Ergebnisses an. Wählen Sie alle aus oder löschen Sie die Auswahl nach Bedarf. Entfernen Sie Duplikate aus allen Dateien, konvertieren Sie sie optional in Kleinbuchstaben und exportieren Sie ein einzelnes TXT-Wortbuch. TXT kann Einträge nach Datei, nach Datei und Seite oder in einem Kapitel gruppieren.
 - Druckbare Vokabeltabelle: Exportieren Sie ein A4-PDF mit englischen Wörtern oder Phrasen auf der linken Seite und Bedeutungen auf der rechten Seite. Sehen Sie sich die Bedeutungen für diesen Export in der Vorschau an und bearbeiten Sie sie. Lange Bedeutungen werden auf den Folgeseiten mit wiederholten Spaltenüberschriften fortgesetzt. Eine zusammengeführte Tabelle kann alle überprüften PDFs enthalten und verwendet Ihre gespeicherten persönlichen Bedeutungen.
 - PDF mit Wörtern und Anmerkungen: Erstellen Sie eine Kopie mit gesammelten Wortstilen und Standard-PDF-Anmerkungen. Textnotizen bleiben direkt sichtbar und ausdruckbar. Das Original-PDF bleibt erhalten.
 - Lesen von PDFs mit Platz zum Schreiben: Fügen Sie eine oder zwei Leerzeilen zwischen visuellen Textzeilen für handschriftliche Notizen ein. Wählen Sie alle Seiten, die aktuelle Seite oder einen Seitenbereich. Die Ausgabe verwendet eine A4-Paginierung und kann den Stil gesammelter Wörter enthalten. Die Verarbeitung läuft im Hintergrund und kann abgebrochen werden.

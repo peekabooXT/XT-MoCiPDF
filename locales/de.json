@@ -350,5 +350,16 @@
   "（英文释义）<br>": "(Englische Bedeutung) <br>",
   "按住左键拖动连续擦除批注；已收录词条在选词模式下双击取消。": "Halten Sie die linke Maustaste gedrückt und ziehen Sie, um Anmerkungen zu löschen. Gesammelte Wörter lassen sich im Lesemodus per Doppelklick entfernen.",
   "自由画笔：按住 Ctrl 画直线，按住 Shift 画波浪线。": "Freihandstift: Ctrl für eine gerade Linie, Shift für eine Wellenlinie gedrückt halten.",
-  "本篇词本 · {arg0} 个词条 · {arg1} 个标记": "Wortliste · {arg0} Einträge · {arg1} Markierungen"
+  "本篇词本 · {arg0} 个词条 · {arg1} 个标记": "Wortliste · {arg0} Einträge · {arg1} Markierungen",
+  "在页面上输入备注…": "Notiz auf der Seite eingeben…",
+  "拖动这里移动备注": "Hier ziehen, um die Notiz zu verschieben",
+  "开始计时": "Timer starten",
+  "暂停计时": "Timer pausieren",
+  "重置计时": "Timer zurücksetzen",
+  "隐藏释义": "Bedeutungen ausblenden",
+  "释义已遮盖": "Bedeutungen sind verdeckt",
+  "查看当前释义": "Diese Bedeutung anzeigen",
+  "导出…": "Exportieren…",
+  "重置": "Zurücksetzen",
+  "备注：直接在 PDF 页面输入，Ctrl+Enter 保存，Esc 取消；拖住备注可移动，双击可编辑。顶部计时器支持开始、暂停与重置，关闭后保存时长，再次启动时暂停。所有导出方式（包括多文件合并）都在右下角「导出…」中，Ctrl+E 打开菜单。词典可勾选「隐藏释义」，点击查看当前释义，换词后自动重新遮盖；隐藏偏好会保存。": "Notizen direkt auf der PDF-Seite eingeben: Ctrl+Enter speichert, Esc bricht ab. Ziehen verschiebt eine Notiz, Doppelklick bearbeitet sie. Der Timer oben kann gestartet, pausiert und zurückgesetzt werden; nach erneutem Öffnen bleibt die gespeicherte Zeit pausiert. Alle Exporte einschließlich mehrerer Dateien finden Sie unten rechts unter Exportieren (Ctrl+E). Bedeutungen lassen sich verdecken und einzeln anzeigen; beim nächsten Nachschlagen werden sie wieder verdeckt. Diese Einstellung wird gespeichert."
 }

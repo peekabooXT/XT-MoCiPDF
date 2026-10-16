@@ -350,5 +350,16 @@
   "（英文释义）<br>": "(sens anglais) <br>",
   "按住左键拖动连续擦除批注；已收录词条在选词模式下双击取消。": "Maintenez le bouton gauche et faites glisser pour effacer les annotations. Double-cliquez sur les mots collectés en mode lecture pour retirer leurs marques.",
   "自由画笔：按住 Ctrl 画直线，按住 Shift 画波浪线。": "Stylo libre : maintenez Ctrl pour une ligne droite ou Shift pour une ligne ondulée.",
-  "本篇词本 · {arg0} 个词条 · {arg1} 个标记": "Vocabulaire · {arg0} termes · {arg1} marques"
+  "本篇词本 · {arg0} 个词条 · {arg1} 个标记": "Vocabulaire · {arg0} termes · {arg1} marques",
+  "在页面上输入备注…": "Saisissez une note sur la page…",
+  "拖动这里移动备注": "Faites glisser ici pour déplacer la note",
+  "开始计时": "Démarrer le chrono",
+  "暂停计时": "Mettre en pause",
+  "重置计时": "Réinitialiser le chrono",
+  "隐藏释义": "Masquer le sens",
+  "释义已遮盖": "Le sens est masqué",
+  "查看当前释义": "Afficher ce sens",
+  "导出…": "Exporter…",
+  "重置": "Réinitialiser",
+  "备注：直接在 PDF 页面输入，Ctrl+Enter 保存，Esc 取消；拖住备注可移动，双击可编辑。顶部计时器支持开始、暂停与重置，关闭后保存时长，再次启动时暂停。所有导出方式（包括多文件合并）都在右下角「导出…」中，Ctrl+E 打开菜单。词典可勾选「隐藏释义」，点击查看当前释义，换词后自动重新遮盖；隐藏偏好会保存。": "Écrivez les notes sur le PDF : Ctrl+Entrée enregistre, Échap annule. Faites glisser une note pour la déplacer ; double-cliquez pour la modifier. Le chrono en haut permet de démarrer, mettre en pause et réinitialiser ; le temps enregistré est restauré en pause. Tous les exports, dont la fusion de fichiers, sont dans Exporter en bas à droite (Ctrl+E). Masquez les définitions et révélez celle du mot courant ; la recherche suivante les masque à nouveau. Ce choix est mémorisé."
 }

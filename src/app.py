@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
     QPushButton, QLabel, QListWidget, QListWidgetItem, QLineEdit, QScrollArea, QSplitter,
     QSpinBox, QComboBox, QCheckBox, QFileDialog, QInputDialog, QMessageBox, QDialog,
     QPlainTextEdit, QAbstractItemView, QTextBrowser, QProgressDialog, QTableWidget,
-    QTableWidgetItem, QHeaderView, QTextEdit, QAbstractSpinBox, QKeySequenceEdit, QSizePolicy)
+    QTableWidgetItem, QHeaderView, QTextEdit, QAbstractSpinBox, QKeySequenceEdit, QSizePolicy, QMenu, QStackedWidget)
 
 from core import (Library, clean_term, validate_term, export_body, merged_record,
                   export_merged_body, protect_export_path, write_export_text)
@@ -33,6 +33,7 @@ from annotations import (COLLECTED_COLOR, KINDS, ink_rgba, annotation_at,
 from tool_settings import (AnnotationToolBar, ShortcutSettingsDialog, TOOLS, PORTABLE,
                            load_shortcuts, validated_shortcuts)
 from author_statement import statement_html
+from reading_tools import NoteEditor, ReadingTimer
 
 APP_ROOT = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]
 ASSETS = Path(getattr(sys, '_MEIPASS', APP_ROOT))
@@ -116,6 +117,9 @@ class PDFCanvas(QWidget):
         self.draft = None
         self.ink_cache = {}
         self.note_cache = {}
+        self.note_editor = None
+        self.editing_note = None
+        self.note_drag = None
         self.page_bounds = fitz.Rect(0, 0, 595, 842)
         self.selection = []
         self.anchor = None
@@ -176,6 +180,10 @@ class PDFCanvas(QWidget):
                 p.setPen(QPen(QColor(COLLECTED_COLOR), max(1.5, 1.5 * self.scale)))
                 p.drawLine(self.screen_point(r.bl), self.screen_point(r.br))
         for item in self.annotations + ([self.draft] if self.draft else []):
+            if self.editing_note and item.get('id') == self.editing_note.get('id'):
+                continue
+            if self.note_drag and item.get('id') == self.note_drag['item']['id']:
+                item = self.note_drag['item']
             self.paint_annotation(p, item)
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor(0, 135, 122, 85))
@@ -192,6 +200,8 @@ class PDFCanvas(QWidget):
         return [q.x, q.y]
 
     def set_tool(self, tool, color, width):
+        self.finish_note()
+        self.note_drag = None
         self.cancel_draft()
         self.tool, self.color, self.pen_width = tool, color, width
         self.update_cursor()
@@ -305,7 +315,7 @@ class PDFCanvas(QWidget):
             key = (item.get('id', ''), item['text'], item['color'], tuple(item['rect']))
             if key not in self.note_cache:
                 rect, pix = render_note(item, self.page_bounds, max(1.5, self.scale * 1.5))
-                image = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888).copy()
+                image = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGBA8888_Premultiplied).copy()
                 self.note_cache[key] = (rect, QPixmap.fromImage(image))
             rect, image = self.note_cache[key]
             m = self.rotation
@@ -323,6 +333,7 @@ class PDFCanvas(QWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            self.finish_note()
             self.setFocus()
             point = self.pdf_point(event.position())
             if self.tool == 'erase':
@@ -331,12 +342,19 @@ class PDFCanvas(QWidget):
                 self.update_cursor(True)
                 self.annotation_requested.emit({'erase': point, 'erase_start': True})
                 return
-            if self.tool == 'note':
+            if self.tool in ('note', 'select'):
                 found = annotation_at([a for a in self.annotations if a['type'] == 'note'], point, page_rect=self.page_bounds)
-                self.annotation_requested.emit({'edit': found['id']} if found else
-                    {'type': 'note', 'rect': [point[0], point[1], point[0] + 18, point[1] + 18],
-                     'color': self.color, 'width': self.pen_width})
-                return
+                if found:
+                    self.note_drag = {'item': copy.deepcopy(found), 'original': copy.deepcopy(found),
+                                      'start': point, 'moved': False}
+                    self.dragging = True
+                    self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                    return
+                if self.tool == 'note':
+                    self.annotation_requested.emit(
+                        {'type': 'note', 'rect': [point[0], point[1], point[0] + 18, point[1] + 18],
+                         'color': self.color, 'width': self.pen_width})
+                    return
             if self.tool in ('ink', 'rect'):
                 self.dragging = True
                 self.ink_points = [point]
@@ -351,6 +369,18 @@ class PDFCanvas(QWidget):
             self.update()
 
     def mouseMoveEvent(self, event):
+        if self.note_drag:
+            state = self.note_drag
+            point = self.pdf_point(event.position())
+            dx, dy = point[0] - state['start'][0], point[1] - state['start'][1]
+            if abs(dx) + abs(dy) > 3 / self.scale:
+                state['moved'] = True
+            if state['moved']:
+                rect = note_layout(state['original'], self.page_bounds)[0] + (dx, dy, dx, dy)
+                state['item']['rect'] = list(rect)
+                self.note_cache.clear()
+                self.update()
+            return
         if self.tool == 'erase' and self.dragging:
             point = self.pdf_point(event.position())
             self.annotation_requested.emit({'erase': point, 'erase_from': self.eraser_point})
@@ -359,6 +389,9 @@ class PDFCanvas(QWidget):
         if not self.dragging:
             found = annotation_at(self.annotations, self.pdf_point(event.position()), page_rect=self.page_bounds)
             self.setToolTip(found.get('text', '') if found else '')
+            if self.tool in ('select', 'note'):
+                self.setCursor(Qt.CursorShape.OpenHandCursor if found and found['type'] == 'note'
+                               else Qt.CursorShape.IBeamCursor)
             return
         if self.draft:
             point = self.pdf_point(event.position())
@@ -382,6 +415,16 @@ class PDFCanvas(QWidget):
             return
         self.mouseMoveEvent(event)
         self.dragging = False
+        if self.note_drag:
+            state, self.note_drag = self.note_drag, None
+            self.update_cursor()
+            if state['moved']:
+                rect = note_layout(state['item'], self.page_bounds)[0]
+                self.annotation_requested.emit({'move': state['item']['id'], 'rect': list(rect)})
+            elif self.tool == 'note':
+                self.annotation_requested.emit({'edit': state['item']['id']})
+            self.update()
+            return
         if self.tool == 'erase':
             self.annotation_requested.emit({'erase_end': True})
             self.eraser_point = None
@@ -400,13 +443,15 @@ class PDFCanvas(QWidget):
     def mouseDoubleClickEvent(self, event):
         if event.button() != Qt.MouseButton.LeftButton:
             return
-        if self.tool != 'select':
+        if self.tool not in ('select', 'note'):
             event.accept()
             return
         self.setFocus()
         note = annotation_at([a for a in self.annotations if a['type'] == 'note'],
                              self.pdf_point(event.position()), page_rect=self.page_bounds)
         if note:
+            self.note_drag = None
+            self.dragging = False
             self.annotation_requested.emit({'edit': note['id']})
             return
         self.dragging = False
@@ -415,6 +460,32 @@ class PDFCanvas(QWidget):
         if index is not None:
             self.word_toggled.emit(index)
         event.accept()
+
+    def edit_note(self, item):
+        self.finish_note()
+        self.editing_note = copy.deepcopy(item)
+        rect, _ = note_layout(dict(item, text=item.get('text', '') or ' '), self.page_bounds)
+        self.note_editor = NoteEditor(self, item.get('text', ''), self.screen_rect(rect))
+        self.note_editor.finished.connect(self.finish_note)
+        self.update()
+
+    def finish_note(self, save=True):
+        if self.note_editor is None:
+            return True
+        editor, item = self.note_editor, self.editing_note
+        self.note_editor = self.editing_note = None
+        text = editor.text.toPlainText().strip()
+        delta = self.pdf_point(QPointF(editor.pos()))
+        origin = self.pdf_point(QPointF(editor.start_position))
+        dx, dy = delta[0] - origin[0], delta[1] - origin[1]
+        item['rect'] = list(fitz.Rect(item['rect']) + (dx, dy, dx, dy))
+        editor.hide()
+        editor.deleteLater()
+        if save and text:
+            item['text'] = text
+            self.annotation_requested.emit({'save_note': item})
+        self.update()
+        return self.note_editor is None
 
     def selection_text(self):
         text, last_line = '', None
@@ -449,6 +520,7 @@ class PDFDocumentView(QWidget):
     def clear(self):
         self.timer.stop()
         for canvas in self.canvases.values():
+            canvas.finish_note()
             canvas.hide()
             canvas.deleteLater()
         self.canvases.clear()
@@ -461,6 +533,8 @@ class PDFDocumentView(QWidget):
         self.active = self.owner.page_no
 
     def layout_pages(self, columns, width, scale=None):
+        if not self.owner.finish_notes():
+            return
         if not self.sizes:
             return
         row_width = max(sum(w for w, h in self.sizes[i:i + columns])
@@ -474,6 +548,7 @@ class PDFDocumentView(QWidget):
         self.columns, self.scale = columns, scale
         self.signature = signature
         for canvas in self.canvases.values():
+            canvas.finish_note()
             canvas.hide()
             canvas.deleteLater()
         self.canvases.clear()
@@ -538,7 +613,10 @@ class PDFDocumentView(QWidget):
             self.page_canvas(n)
         for n in list(self.canvases):
             if n not in wanted:
-                canvas = self.canvases.pop(n)
+                canvas = self.canvases[n]
+                if not canvas.finish_note():
+                    continue
+                self.canvases.pop(n)
                 canvas.hide()
                 canvas.deleteLater()
 
@@ -622,8 +700,9 @@ class AnnotationDialog(QDialog):
     def edit(self):
         item = self.current()
         if item and item['type'] == 'note':
+            self.accept()
+            self.owner.go_page(item['page'])
             self.owner.annotation_action(item['page'], {'edit': item['id']})
-            self.refresh()
         else:
             QMessageBox.information(self, tr('编辑备注'), tr('请选择一条文字备注。'))
 
@@ -1139,6 +1218,10 @@ class MainWindow(QMainWindow):
         header.addWidget(brand)
         header.addWidget(muted(tr('XT · 精读与积累')))
         header.addStretch()
+        self.reading_timer = ReadingTimer(self, self.lib.state.get('reading_timer_seconds', 0))
+        self.reading_timer.state_changed.connect(self.save_reading_time)
+        header.addWidget(self.reading_timer)
+        header.addSpacing(12)
         header.addWidget(button(tr('设置'), self.shortcut_settings))
         header.addWidget(button(tr('作者与致谢'), self.about))
         header.addWidget(button(tr('使用帮助'), self.help))
@@ -1161,8 +1244,6 @@ class MainWindow(QMainWindow):
         lr.addWidget(button(tr('重命名'), self.rename_doc))
         lr.addWidget(button(tr('移除'), self.remove_doc))
         ll.addLayout(lr)
-        self.merge_export_button = button(tr('合并导出词本 · 多文件'), self.export_merged)
-        ll.addWidget(self.merge_export_button)
         ll.addWidget(muted(tr('PDF 副本和标记保存在本机。\n原始 PDF 不会被改写。')))
         splitter.addWidget(left)
         center = QWidget()
@@ -1266,7 +1347,12 @@ class MainWindow(QMainWindow):
         rl.setContentsMargins(8, 8, 0, 0)
         dictionary_title = QLabel(tr('离线英汉词典'))
         dictionary_title.setStyleSheet('font-size: 15px; font-weight: 600; color: #087f73;')
-        rl.addWidget(dictionary_title)
+        dictionary_header = QHBoxLayout()
+        dictionary_header.addWidget(dictionary_title, 1)
+        self.hide_definition = QCheckBox(tr('隐藏释义'))
+        self.hide_definition.setChecked(bool(self.lib.state.get('hide_definition', False)))
+        dictionary_header.addWidget(self.hide_definition)
+        rl.addLayout(dictionary_header)
         dictionary_row = QHBoxLayout()
         self.dictionary_query = QLineEdit()
         self.dictionary_query.setPlaceholderText(tr('单词 / 词组（可手动查词）'))
@@ -1280,7 +1366,24 @@ class MainWindow(QMainWindow):
         self.dictionary_view.setMinimumHeight(160)
         self.dictionary_view.setMaximumHeight(300)
         self.dictionary_view.setHtml(render_lookup(self.dictionary.lookup('')))
-        rl.addWidget(self.dictionary_view, 1)
+        self.dictionary_stack = QStackedWidget()
+        self.dictionary_stack.setMinimumHeight(160)
+        self.dictionary_stack.setMaximumHeight(300)
+        self.dictionary_stack.addWidget(self.dictionary_view)
+        self.definition_cover = QWidget()
+        cover_layout = QVBoxLayout(self.definition_cover)
+        cover_layout.addStretch()
+        cover_label = QLabel(tr('释义已遮盖'))
+        cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cover_layout.addWidget(cover_label)
+        self.reveal_definition = button(tr('查看当前释义'), self.reveal_current_definition)
+        cover_layout.addWidget(self.reveal_definition)
+        cover_layout.addStretch()
+        self.definition_cover.setStyleSheet('background: #e5eeed; border-radius: 8px;')
+        self.dictionary_stack.addWidget(self.definition_cover)
+        rl.addWidget(self.dictionary_stack, 1)
+        self.hide_definition.toggled.connect(self.set_definition_hidden)
+        self.dictionary_stack.setCurrentIndex(1 if self.hide_definition.isChecked() else 0)
         dictionary_actions = QHBoxLayout()
         self.edit_definition_button = button(tr('编辑 / 补充释义'), self.edit_personal_definition)
         self.reset_definition_button = button(tr('恢复词典释义'), self.reset_personal_definition)
@@ -1303,13 +1406,26 @@ class MainWindow(QMainWindow):
         row.addWidget(button(tr('编辑词条'), self.edit_mark))
         row.addWidget(button(tr('删除'), self.delete_marks))
         rl.addLayout(row)
-        rl.addWidget(button(tr('一键导出云词本 TXT'), self.quick_export, True))
-        rl.addWidget(button(tr('预览 / 复制 / 导出设置'), self.export_dialog))
-        rl.addWidget(button(tr('导出收录与批注 PDF'), self.export_pdf))
-        self.vocabulary_button = button(tr('导出单词释义表 PDF'), self.export_vocabulary)
-        rl.addWidget(self.vocabulary_button)
-        self.reading_button = button(tr('导出精读 PDF（留空行）'), self.export_reading)
-        rl.addWidget(self.reading_button)
+        self.export_button = QPushButton(tr('导出…'))
+        self.export_button.setObjectName('primary')
+        self.export_menu = QMenu(self.export_button)
+        self.export_actions = []
+        def export_action(label, callback):
+            action = self.export_menu.addAction(str(label))
+            action.triggered.connect(callback)
+            self.export_actions.append((action, label))
+            return action
+        export_action(tr('一键导出云词本 TXT'), self.quick_export)
+        export_action(tr('预览 / 复制 / 导出设置'), self.export_dialog)
+        self.export_menu.addSeparator()
+        export_action(tr('导出收录与批注 PDF'), self.export_pdf)
+        self.vocabulary_button = export_action(tr('导出单词释义表 PDF'), self.export_vocabulary)
+        self.reading_button = export_action(tr('导出精读 PDF（留空行）'), self.export_reading)
+        self.export_menu.addSeparator()
+        self.merge_export_button = export_action(tr('合并导出词本 · 多文件'), self.export_merged)
+        self.export_menu.aboutToShow.connect(self.prepare_export_menu)
+        self.export_button.setMenu(self.export_menu)
+        rl.addWidget(self.export_button)
         rl.addWidget(muted(tr('双击词条返回所在页。\n导出默认合并同样拼写的词条。')))
         splitter.addWidget(right)
         splitter.setSizes([220, 900, 340])
@@ -1337,7 +1453,7 @@ class MainWindow(QMainWindow):
         self.mark_list.itemDoubleClicked.connect(self.jump_mark)
         self.mark_list.itemClicked.connect(lambda item: self.lookup_term(self.get_mark(item)['term']))
         QShortcut(QKeySequence('Ctrl+O'), self, self.import_dialog)
-        QShortcut(QKeySequence('Ctrl+E'), self, self.quick_export)
+        QShortcut(QKeySequence('Ctrl+E'), self, self.open_export_menu)
         QShortcut(QKeySequence('Ctrl+F'), self, lambda: self.pdf_search.setFocus())
         QShortcut(QKeySequence('Ctrl+Z'), self, self.undo_annotation)
         QShortcut(QKeySequence('Ctrl+Y'), self, self.redo_annotation)
@@ -1430,6 +1546,7 @@ class MainWindow(QMainWindow):
             self.refresh_marks()
             self.refresh_annotation_controls()
             self.lookup_term(self.dictionary_query.text())
+            self.translate_export_menu()
             self.library_panel.setMinimumWidth(max(190, self.library_panel.layout().minimumSize().width()))
             self.dictionary_panel.setMinimumWidth(max(300, self.dictionary_panel.layout().minimumSize().width()))
         self.annotation_tool.set_shortcuts(values)
@@ -1503,6 +1620,21 @@ class MainWindow(QMainWindow):
                     items = [a for a in items if a['id'] != found['id']]
             self.commit_annotations(items, history=getattr(self, 'erase_before', None) is None)
             return
+        if 'move' in action:
+            item = next((a for a in items if a['id'] == action['move'] and a['type'] == 'note'), None)
+            if item:
+                item['rect'] = action['rect']
+                self.commit_annotations(items)
+            return
+        if 'save_note' in action:
+            item = copy.deepcopy(action['save_note'])
+            if any(a['id'] == item['id'] for a in items):
+                items = [item if a['id'] == item['id'] else a for a in items]
+            else:
+                items.append(item)
+            if not self.commit_annotations(items) and self.record.get('annotations', []) != items:
+                self.reader.page_canvas(page_no).edit_note(item)
+            return
         if 'edit' in action:
             item = next((a for a in items if a['id'] == action['edit']), None)
             if not item or item['type'] != 'note':
@@ -1511,20 +1643,15 @@ class MainWindow(QMainWindow):
             item = dict(action, page=page_no, id=uuid.uuid4().hex,
                         created=datetime.now().isoformat(timespec='microseconds'))
         if item['type'] == 'note':
-            text, ok = QInputDialog.getMultiLineText(self, tr('文字备注'), tr('写下你的阅读笔记（双击备注可以编辑）'),
-                                                    item.get('text', ''))
-            if not ok or not text.strip():
-                return
-            item['text'] = text.strip()
-            # Preserve the legacy anchor; the visible text box is fitted on-page
-            # at render time without rewriting old annotation records.
-            bounds = self.doc[page_no].cropbox
-            x = max(0, min(bounds.width - 18, item['rect'][0]))
-            y = max(0, min(bounds.height - 18, item['rect'][1]))
-            item['rect'] = [x, y, x + 18, y + 18]
+            self.reader.page_canvas(page_no).edit_note(item)
+            return
         if 'edit' not in action:
             items.append(item)
         self.commit_annotations(items)
+
+    def finish_notes(self):
+        results = [canvas.finish_note() for canvas in list(self.reader.canvases.values())]
+        return all(results)
 
     def undo_annotation(self):
         focus = QApplication.focusWidget()
@@ -1563,6 +1690,50 @@ class MainWindow(QMainWindow):
         if self.record:
             AnnotationDialog(self).exec()
 
+    def save_reading_time(self):
+        previous = self.lib.state.get('reading_timer_seconds')
+        self.lib.state['reading_timer_seconds'] = self.reading_timer.milliseconds() // 1000
+        if not self.persist():
+            if previous is None:
+                self.lib.state.pop('reading_timer_seconds', None)
+            else:
+                self.lib.state['reading_timer_seconds'] = previous
+
+    def translate_export_menu(self):
+        for action, label in self.export_actions:
+            action.setText(str(label))
+
+    def prepare_export_menu(self):
+        self.finish_notes()
+        self.translate_export_menu()
+        marks = bool(self.record and self.record['marks'])
+        for index, (action, _) in enumerate(self.export_actions):
+            if index in (0, 1, 3):
+                action.setEnabled(marks)
+            elif index == 2:
+                action.setEnabled(bool(self.record and (marks or self.record.get('annotations'))))
+        self.reading_button.setEnabled(bool(self.record) and not (self.reading_worker and self.reading_worker.isRunning()))
+        self.merge_export_button.setEnabled(any(r['marks'] for r in self.lib.state['documents']))
+
+    def open_export_menu(self):
+        self.export_button.showMenu()
+
+    def reveal_current_definition(self):
+        self.dictionary_stack.setCurrentIndex(0)
+        self.refresh_definition_controls()
+
+    def set_definition_hidden(self, hidden):
+        previous = self.lib.state.get('hide_definition', False)
+        self.lib.state['hide_definition'] = hidden
+        if not self.persist():
+            self.lib.state['hide_definition'] = previous
+            self.hide_definition.blockSignals(True)
+            self.hide_definition.setChecked(previous)
+            self.hide_definition.blockSignals(False)
+            hidden = previous
+        self.dictionary_stack.setCurrentIndex(1 if hidden else 0)
+        self.refresh_definition_controls()
+
     def schedule_lookup(self, text):
         # Clearing the marking input must not erase the definition just read.
         if text.strip():
@@ -1576,6 +1747,7 @@ class MainWindow(QMainWindow):
         self.dictionary_query.setText(clean_term(text)[:240])
         self.dictionary_view.setHtml(render_lookup(self.dictionary.lookup(text)))
         self.dictionary_view.verticalScrollBar().setValue(0)
+        self.dictionary_stack.setCurrentIndex(1 if self.hide_definition.isChecked() else 0)
         self.refresh_definition_controls()
 
     def refresh_definition_controls(self):
@@ -1695,6 +1867,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, tr('导入失败'), str(exc))
 
     def open_record(self, record, password=None):
+        if not self.finish_notes():
+            return
         try:
             doc = fitz.open(self.lib.pdf_path(record))
             if password is None:
@@ -1984,6 +2158,8 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, tr('无法准备释义表'), str(exc))
 
     def write_highlight_pdf(self, path):
+        if not self.finish_notes():
+            raise OSError(tr('未能保存'))
         if Path(path).resolve().is_relative_to(self.lib.root.resolve()):
             raise ValueError(tr('不能将导出文件写入文档数据目录，请另选位置。'))
         return export_annotated_pdf(self.lib.pdf_path(self.record), path, self.record['marks'],
@@ -2161,7 +2337,7 @@ class MainWindow(QMainWindow):
 
     def help(self):
         QMessageBox.information(self, tr('XT 阅迹 · 使用帮助'),
-            tr('1. 点击「导入 PDF」，也可以把 PDF 拖入窗口。\n2. 单击一个单词，或从词组第一个词拖到最后一个词。\n3. 核对下方输入框，按 Enter 或点击「标记选词」。\n   快捷操作：双击单词直接收录，再次双击青绿下划线词条即可取消。\n4. 点击「一键导出云词本 TXT」，把 TXT 正文粘贴到墨墨背单词云词本。\n\n扫描页：点击「识别当前页」，完成后同样选择词条。OCR 结果可能有误，请核对。\n词本：双击返回原页；编辑修正拼写；Ctrl 多选后删除。\n章节模式保留词组与大小写。// 原型模式由墨墨背单词进行词形还原。\n快捷键：Ctrl+O 导入，Ctrl+E 导出，Ctrl+F 查找。\n\n精读：右侧「导出精读 PDF」可生成留空行的打印副本。\n批注：顶部选择高亮、下划线、画笔、矩形框或文字备注，旁边可选颜色和线宽。\n批注管理可定位、编辑备注、删除；Ctrl+Z 撤销，Ctrl+Y 重做，Esc 返回选词。\n文字备注直接显示为页面文本框，选词模式双击文本框可编辑，导出 PDF 也能直接阅读。\n工具按钮全部展开；默认 1–7 依次切换选词、高亮、下划线、画笔、框、备注、橡皮擦。\n右上角「设置」可修改工具快捷键；输入框打字时不触发工具切换。\n右侧「导出收录与批注 PDF」会保存全部收录样式和论文批注。\n多文件：左侧「合并导出词本」勾选多个 PDF，可统一去重、按文件分章节，并导出 TXT 或释义 PDF。\n查词：选词后右侧显示离线中文释义，也可手动输入查词。\n个人释义：点击词典下方「编辑 / 补充释义」可长期保存自己的解释，释义表也会使用它。\n阅读：默认单页连续滚动，顶部可切换「双页并排」。滚动时自动加载附近页面。\n所有 PDF 和标记只在本机保存。备份整个 data 文件夹即可迁移。'))
+            tr('备注：直接在 PDF 页面输入，Ctrl+Enter 保存，Esc 取消；拖住备注可移动，双击可编辑。顶部计时器支持开始、暂停与重置，关闭后保存时长，再次启动时暂停。所有导出方式（包括多文件合并）都在右下角「导出…」中，Ctrl+E 打开菜单。词典可勾选「隐藏释义」，点击查看当前释义，换词后自动重新遮盖；隐藏偏好会保存。'))
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and any(u.toLocalFile().lower().endswith('.pdf') for u in event.mimeData().urls()):
@@ -2173,6 +2349,10 @@ class MainWindow(QMainWindow):
                 self.import_file(u.toLocalFile())
 
     def closeEvent(self, event):
+        if not self.finish_notes():
+            event.ignore()
+            return
+        self.lib.state['reading_timer_seconds'] = self.reading_timer.milliseconds() // 1000
         if self.reading_worker and self.reading_worker.isRunning():
             self.statusBar().showMessage(tr('正在生成精读 PDF，可先在进度窗口取消，完成后再关闭。'))
             event.ignore()
@@ -2355,6 +2535,28 @@ def main():
                         assert Library(data_root).state['language'] == code
                     assert window.save_preferences(window.tool_shortcuts, 'en')
                     assert 'peekaboocatx@gmail.com' in str(statement_html())
+                    window.annotation_action(0, {'type': 'note', 'rect': [60, 210, 78, 228],
+                        'color': '#4799de', 'width': 2})
+                    note_canvas = window.reader.page_canvas(0)
+                    assert note_canvas.note_editor is not None
+                    note_canvas.note_editor.text.setPlainText('INLINE_NOTE_RUNTIME 中文')
+                    note_canvas.finish_note()
+                    runtime_note = window.record['annotations'][-1]
+                    rect, pix = render_note(runtime_note, note_canvas.page_bounds, 1)
+                    assert pix.alpha and min(pix.samples[3::4]) == 0
+                    window.hide_definition.setChecked(True)
+                    window.lookup_term('research')
+                    assert window.dictionary_stack.currentWidget() is window.definition_cover
+                    window.reveal_current_definition()
+                    assert window.dictionary_stack.currentWidget() is window.dictionary_view
+                    window.lookup_term('word')
+                    assert window.dictionary_stack.currentWidget() is window.definition_cover
+                    window.prepare_export_menu()
+                    assert len(window.export_actions) == 6
+                    window.reading_timer.toggle()
+                    assert window.reading_timer.clock.isValid()
+                    window.reading_timer.toggle()
+                    assert not window.reading_timer.clock.isValid()
                     window.grab().save(str(Path(verify_dir, 'window.png')))
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': True, 'marks': len(window.record['marks']),
                         'ocr_words': ocr_count, 'columns': window.reader.columns, 'continuous_pages': len(window.reader.boxes),
@@ -2364,7 +2566,8 @@ def main():
                         'vocabulary_export': vocabulary_report, 'annotations': 5,
                         'tool_shortcuts': True, 'visible_tools': len(TOOLS),
                         'personal_dictionary': True, 'visible_notes': True, 'merge_export': True,
-                        'languages': len(LANGUAGES), 'default_english': True, 'author_statement': True}), encoding='utf-8')
+                        'languages': len(LANGUAGES), 'default_english': True, 'author_statement': True,
+                        'inline_notes': True, 'reading_timer': True, 'export_menu': True, 'dictionary_cover': True}), encoding='utf-8')
                 except Exception as exc:
                     Path(verify_dir, 'result.json').write_text(json.dumps({'ok': False, 'error': str(exc)}), encoding='utf-8')
                 window.close()

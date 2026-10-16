@@ -100,14 +100,19 @@ old_input = QInputDialog.getMultiLineText
 QInputDialog.getMultiLineText = lambda *a, **k: ('中文备注：这里的方法值得对比。\nNext step: check the assumptions.', True)
 tool('note')
 QTest.mouseClick(w.canvas, Qt.MouseButton.LeftButton, pos=point(420, 230))
+w.canvas.note_editor.text.setPlainText('中文备注：这里的方法值得对比。\nNext step: check the assumptions.')
+w.canvas.finish_note()
 note = w.record['annotations'][-1]
 assert note['type'] == 'note' and '中文备注' in note['text']
 QInputDialog.getMultiLineText = lambda *a, **k: ('取消的备注', False)
 QTest.mouseClick(w.canvas, Qt.MouseButton.LeftButton, pos=point(440, 340))
+w.canvas.finish_note(False)
 assert len(w.record['annotations']) == count + 1
 QInputDialog.getMultiLineText = lambda *a, **k: ('修改后：Chinese note retained 完整中文。', True)
 tool('select')
 QTest.mouseDClick(w.canvas, Qt.MouseButton.LeftButton, pos=point(425, 235))
+w.canvas.note_editor.text.setPlainText('修改后：Chinese note retained 完整中文。')
+w.canvas.finish_note()
 assert '修改后' in w.record['annotations'][-1]['text']
 assert len(w.record['marks']) == 1
 

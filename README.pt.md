@@ -2,11 +2,13 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [한국어](README.ko.md) | [Italiano](README.it.md) | [हिन्दी](README.hi.md) | [Español](README.es.md) | [العربية الفصحى](README.ar.md) | [Português](README.pt.md) | [Русский](README.ru.md)
 
+**1.14.0** — Escreva notas no PDF: Ctrl+Enter salva e Esc cancela. Arraste uma nota salva para mover e clique duas vezes para editar. O cronômetro superior permite iniciar, pausar e zerar; ao reabrir restaura o tempo salvo em pausa. Todas as exportações, incluindo mesclagem de arquivos, estão em Exportar no canto inferior direito (Ctrl+E). Oculte os significados e revele o atual; a próxima consulta volta a ocultá-los. A preferência é salva.
+
 Ferramenta de desktop do XT (XuTao) para ler PDFs em inglês, coletar vocabulário e fazer anotações de pesquisa. Leia uma página, deixe um rastro.
 
 ## Instalar e iniciar
 
-Baixe XT-ReadTrace-1.13.2-Setup-x64.exe de [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) e execute o instalador. Inclui o dicionário offline completo, dados de OCR em inglês e tempo de execução. Mantenha a opção de atalho na área de trabalho ativada. Nenhuma instalação ou conta do Python é necessária para o aplicativo instalado.
+Baixe XT-ReadTrace-1.14.0-Setup-x64.exe de [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) e execute o instalador. Inclui o dicionário offline completo, dados de OCR em inglês e tempo de execução. Mantenha a opção de atalho na área de trabalho ativada. Nenhuma instalação ou conta do Python é necessária para o aplicativo instalado.
 
 A pasta de instalação padrão é `D:\tools\codex\XT-ReadTrace`. Abra o atalho na área de trabalho chamado XT 阅迹 ou execute `XT阅迹.exe`. Mantenha as pastas `_internal` e `dictionary` ao lado do executável.
 
@@ -35,7 +37,7 @@ Use Editar/Adicionar significado para salvar sua própria explicação e pronún
 ## Exporte um PDF ou mescle vários livros de palavras
 
 - Wordbook TXT: exporte texto UTF-8 compatível com o wordbook na nuvem do MAiMemo. O modo Capítulo mantém uma palavra ou frase completa por linha e preserva maiúsculas e minúsculas. Capítulos de páginas, texto simples e o modo de formulário base `//` também estão disponíveis. O processamento do formulário base é executado por MAiMemo.
-- Vários PDFs: clique em Mesclar wordbooks abaixo da lista de documentos, verifique os arquivos e visualize o resultado. Selecione tudo ou desmarque a seleção conforme necessário. Remova duplicatas em arquivos, opcionalmente converta para letras minúsculas e exporte um único livro de palavras TXT. O TXT pode agrupar entradas por arquivo, por arquivo e página ou em um capítulo.
+- Vários PDFs: clique em Mesclar wordbooks no menu Exportar, verifique os arquivos e visualize o resultado. Selecione tudo ou desmarque a seleção conforme necessário. Remova duplicatas em arquivos, opcionalmente converta para letras minúsculas e exporte um único livro de palavras TXT. O TXT pode agrupar entradas por arquivo, por arquivo e página ou em um capítulo.
 - Tabela de vocabulário para impressão: exporte um PDF A4 com palavras ou frases em inglês à esquerda e significados à direita. Visualize e edite os significados desta exportação. Os significados longos continuam nas páginas subsequentes com cabeçalhos de coluna repetidos. Uma tabela mesclada pode incluir todos os PDFs verificados e usar seus significados pessoais salvos.
 - PDF de palavras e anotações: crie uma cópia contendo estilos de palavras coletadas e anotações padrão em PDF. As notas de texto permanecem diretamente visíveis e imprimíveis. O PDF original é preservado.
 - Leitura de PDF com espaço para escrita: adicione uma ou duas linhas em branco entre as linhas de texto visual para notas manuscritas. Escolha todas as páginas, a página atual ou um intervalo de páginas. A saída usa paginação A4 e pode incluir estilo de palavras coletadas. O processamento é executado em segundo plano e pode ser cancelado.

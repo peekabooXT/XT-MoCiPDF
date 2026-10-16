@@ -59,6 +59,8 @@ assert annotation_at(notes, point, page_rect=w.canvas.page_bounds)['id'] == 'leg
 original_input = QInputDialog.getMultiLineText
 QInputDialog.getMultiLineText = lambda *a, **k: ('编辑后的中文备注\nVISIBLE_EDIT_END', True)
 QTest.mouseDClick(w.canvas, Qt.MouseButton.LeftButton, pos=w.canvas.screen_point(point).toPoint())
+w.canvas.note_editor.text.setPlainText('编辑后的中文备注\nVISIBLE_EDIT_END')
+w.canvas.finish_note()
 assert 'VISIBLE_EDIT_END' in w.record['annotations'][0]['text']
 rect, _ = note_layout(w.record['annotations'][0], w.canvas.page_bounds)
 point = rect.br - fitz.Point(8, 8)

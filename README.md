@@ -2,11 +2,13 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [한국어](README.ko.md) | [Italiano](README.it.md) | [हिन्दी](README.hi.md) | [Español](README.es.md) | [العربية الفصحى](README.ar.md) | [Português](README.pt.md) | [Русский](README.ru.md)
 
+**1.14.0** — Notes: type directly on the PDF page, press Ctrl+Enter to save or Esc to cancel. Drag a saved note to move it; double-click to edit. The top timer supports start, pause and reset; elapsed time is restored paused after reopening. All exports, including multi-file merging, are in the bottom-right Export menu (Ctrl+E). Hide meanings covers dictionary content; reveal the current meaning when needed, and the next lookup covers it again. The hiding preference is saved.
+
 XT (XuTao)'s desktop tool for reading English PDFs, collecting vocabulary and making research notes. Read a page, leave a trace.
 
 ## Install and launch
 
-Download XT-ReadTrace-1.13.2-Setup-x64.exe from [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), then run the installer. It includes the complete offline dictionary, English OCR data and runtime. Keep the desktop shortcut option enabled. No Python installation or account is required for the installed app.
+Download XT-ReadTrace-1.14.0-Setup-x64.exe from [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), then run the installer. It includes the complete offline dictionary, English OCR data and runtime. Keep the desktop shortcut option enabled. No Python installation or account is required for the installed app.
 
 The default installation folder is `D:\tools\codex\XT-ReadTrace`. Open the desktop shortcut named XT 阅迹, or run `XT阅迹.exe`. Keep the `_internal` and `dictionary` folders alongside the executable.
 
@@ -35,7 +37,7 @@ Use Edit / Add meaning to save your own explanation and optional pronunciation. 
 ## Export one PDF or merge several wordbooks
 
 - Wordbook TXT: export UTF-8 text compatible with MAiMemo's cloud wordbook. Chapter mode keeps one complete word or phrase per line and preserves case. Page chapters, plain text and the `//` base-form mode are also available. Base-form processing is performed by MAiMemo.
-- Multiple PDFs: click Merge wordbooks below the document list, check the files, and preview the result. Select all or clear the selection as needed. Remove duplicates across files, optionally convert to lowercase, and export a single TXT wordbook. TXT can group entries by file, by file and page, or into one chapter.
+- Multiple PDFs: click Merge wordbooks in the Export menu, check the files, and preview the result. Select all or clear the selection as needed. Remove duplicates across files, optionally convert to lowercase, and export a single TXT wordbook. TXT can group entries by file, by file and page, or into one chapter.
 - Printable vocabulary table: export an A4 PDF with English words or phrases on the left and meanings on the right. Preview and edit meanings for this export. Long meanings continue onto subsequent pages with repeated column headers. A merged table can include all checked PDFs and uses your saved personal meanings.
 - Words and annotations PDF: create a copy containing collected-word styling and standard PDF annotations. Text notes remain directly visible and printable. The original PDF is preserved.
 - Reading PDF with writing space: add one or two blank lines between visual text rows for handwritten notes. Choose all pages, the current page or a page range. Output uses A4 pagination and can include collected-word styling. Processing runs in the background and can be cancelled.

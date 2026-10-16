@@ -2,11 +2,13 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [한국어](README.ko.md) | [Italiano](README.it.md) | [हिन्दी](README.hi.md) | [Español](README.es.md) | [العربية الفصحى](README.ar.md) | [Português](README.pt.md) | [Русский](README.ru.md)
 
+**1.14.0** — Scrivi le note sul PDF: Ctrl+Invio salva, Esc annulla. Trascina una nota per spostarla; fai doppio clic per modificarla. Il timer in alto offre avvio, pausa e azzeramento; alla riapertura ripristina il tempo salvato in pausa. Tutte le esportazioni, inclusa la fusione di file, sono nel menu Esporta in basso a destra (Ctrl+E). Nascondi i significati e rivela quello corrente; la ricerca successiva li copre di nuovo. La preferenza viene salvata.
+
 Lo strumento desktop di XT (XuTao) per leggere PDF in inglese, raccogliere vocabolario e prendere appunti di ricerca. Leggi una pagina, lascia una traccia.
 
 ## Installa e avvia
 
-Scarica XT-ReadTrace-1.13.2-Setup-x64.exe da [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), quindi esegui il programma di installazione. Include il dizionario offline completo, i dati OCR inglesi e il runtime. Mantieni abilitata l'opzione di collegamento sul desktop. Non è richiesta alcuna installazione o account Python per l'app installata.
+Scarica XT-ReadTrace-1.14.0-Setup-x64.exe da [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), quindi esegui il programma di installazione. Include il dizionario offline completo, i dati OCR inglesi e il runtime. Mantieni abilitata l'opzione di collegamento sul desktop. Non è richiesta alcuna installazione o account Python per l'app installata.
 
 La cartella di installazione predefinita è `D:\tools\codex\XT-ReadTrace`. Apri il collegamento sul desktop denominato XT 阅迹 o esegui `XT阅迹.exe`. Conserva le cartelle `_internal` e `dictionary` insieme all'eseguibile.
 
@@ -35,7 +37,7 @@ Utilizza Modifica/Aggiungi significato per salvare la tua spiegazione e la pronu
 ## Esporta un PDF o unisci diversi libri di parole
 
 - Wordbook TXT: esporta testo UTF-8 compatibile con il wordbook cloud di MAiMemo. La modalità capitolo mantiene una parola o una frase completa per riga e preserva le maiuscole e minuscole. Sono inoltre disponibili i capitoli di pagina, il testo semplice e la modalità formato base `//`. L'elaborazione del modulo base viene eseguita da MAiMemo.
-- Più PDF: fai clic su Unisci libri di parole sotto l'elenco dei documenti, controlla i file e visualizza l'anteprima del risultato. Seleziona tutto o deseleziona la selezione secondo necessità. Rimuovi i duplicati tra i file, facoltativamente converti in minuscolo ed esporta un singolo wordbook TXT. TXT può raggruppare le voci per file, per file e pagina o in un capitolo.
+- Più PDF: fai clic su Unisci libri di parole nel menu Esporta, controlla i file e visualizza l'anteprima del risultato. Seleziona tutto o deseleziona la selezione secondo necessità. Rimuovi i duplicati tra i file, facoltativamente converti in minuscolo ed esporta un singolo wordbook TXT. TXT può raggruppare le voci per file, per file e pagina o in un capitolo.
 - Tabella dei vocaboli stampabile: esporta un PDF A4 con parole o frasi inglesi a sinistra e significati a destra. Visualizza in anteprima e modifica i significati per questa esportazione. I significati lunghi continuano nelle pagine successive con intestazioni di colonna ripetute. Una tabella unita può includere tutti i PDF selezionati e utilizza i significati personali salvati.
 - PDF con parole e annotazioni: crea una copia contenente lo stile delle parole raccolte e le annotazioni PDF standard. Le note di testo rimangono direttamente visibili e stampabili. Il PDF originale viene conservato.
 - Lettura di PDF con spazio di scrittura: aggiungi una o due righe vuote tra le righe di testo visivo per le note scritte a mano. Scegli tutte le pagine, la pagina corrente o un intervallo di pagine. L'output utilizza l'impaginazione A4 e può includere lo stile delle parole raccolte. L'elaborazione viene eseguita in background e può essere annullata.

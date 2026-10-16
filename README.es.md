@@ -2,11 +2,13 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [한국어](README.ko.md) | [Italiano](README.it.md) | [हिन्दी](README.hi.md) | [Español](README.es.md) | [العربية الفصحى](README.ar.md) | [Português](README.pt.md) | [Русский](README.ru.md)
 
+**1.14.0** — Escribe notas sobre el PDF: Ctrl+Enter guarda y Esc cancela. Arrastra una nota guardada para moverla y haz doble clic para editarla. El cronómetro superior permite iniciar, pausar y reiniciar; al reabrir recupera el tiempo guardado en pausa. Todas las exportaciones, incluida la combinación de archivos, están en Exportar abajo a la derecha (Ctrl+E). Oculta los significados y revela el actual cuando quieras; la siguiente consulta los oculta de nuevo. Esta preferencia se guarda.
+
 La herramienta de escritorio de XT (XuTao) para leer archivos PDF en inglés, recopilar vocabulario y tomar notas de investigación. Lee una página, deja un rastro.
 
 ## Instalar y ejecutar
 
-Descargue XT-ReadTrace-1.13.2-Setup-x64.exe desde [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) y luego ejecute el instalador. Incluye el diccionario completo sin conexión, datos OCR en inglés y tiempo de ejecución. Mantenga habilitada la opción de acceso directo del escritorio. No se requiere ninguna instalación o cuenta de Python para la aplicación instalada.
+Descargue XT-ReadTrace-1.14.0-Setup-x64.exe desde [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases) y luego ejecute el instalador. Incluye el diccionario completo sin conexión, datos OCR en inglés y tiempo de ejecución. Mantenga habilitada la opción de acceso directo del escritorio. No se requiere ninguna instalación o cuenta de Python para la aplicación instalada.
 
 La carpeta de instalación predeterminada es `D:\tools\codex\XT-ReadTrace`. Abra el acceso directo del escritorio llamado XT 阅迹 o ejecute `XT阅迹.exe`. Mantenga las carpetas `_internal` y `dictionary` junto al ejecutable.
 
@@ -35,7 +37,7 @@ Utilice Editar/Agregar significado para guardar su propia explicación y pronunc
 ## Exporte un PDF o combine varios libros de palabras
 
 - Wordbook TXT: exporta texto UTF-8 compatible con el libro de palabras en la nube de MAiMemo. El modo Capítulo mantiene una palabra o frase completa por línea y conserva las mayúsculas y minúsculas. También están disponibles los capítulos de página, texto sin formato y el modo de formulario base `//`. El procesamiento del formulario base lo realiza MAiMemo.
-- Varios archivos PDF: haga clic en Combinar libros de palabras debajo de la lista de documentos, verifique los archivos y obtenga una vista previa del resultado. Seleccione todo o borre la selección según sea necesario. Elimine duplicados en archivos, opcionalmente convierta a minúsculas y exporte un único libro de palabras TXT. TXT puede agrupar entradas por archivo, por archivo y página, o en un capítulo.
+- Varios archivos PDF: haga clic en Combinar libros de palabras en el menú Exportar, verifique los archivos y obtenga una vista previa del resultado. Seleccione todo o borre la selección según sea necesario. Elimine duplicados en archivos, opcionalmente convierta a minúsculas y exporte un único libro de palabras TXT. TXT puede agrupar entradas por archivo, por archivo y página, o en un capítulo.
 - Tabla de vocabulario imprimible: exporte un PDF A4 con palabras o frases en inglés a la izquierda y significados a la derecha. Obtenga una vista previa y edite los significados de esta exportación. Los significados largos continúan en páginas siguientes con encabezados de columna repetidos. Una tabla combinada puede incluir todos los archivos PDF verificados y utiliza sus significados personales guardados.
 - PDF de palabras y anotaciones: cree una copia que contenga estilos de palabras recopiladas y anotaciones de PDF estándar. Las notas de texto permanecen directamente visibles e imprimibles. Se conserva el PDF original.
 - Lectura de PDF con espacio para escribir: agregue una o dos líneas en blanco entre las filas de texto visual para notas escritas a mano. Elija todas las páginas, la página actual o un rango de páginas. La salida utiliza paginación A4 y puede incluir estilos de palabras recopiladas. El procesamiento se ejecuta en segundo plano y se puede cancelar.

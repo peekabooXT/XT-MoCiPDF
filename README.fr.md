@@ -2,11 +2,13 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [한국어](README.ko.md) | [Italiano](README.it.md) | [हिन्दी](README.hi.md) | [Español](README.es.md) | [العربية الفصحى](README.ar.md) | [Português](README.pt.md) | [Русский](README.ru.md)
 
+**1.14.0** — Écrivez les notes sur le PDF : Ctrl+Entrée enregistre, Échap annule. Faites glisser une note pour la déplacer ; double-cliquez pour la modifier. Le chrono en haut permet de démarrer, mettre en pause et réinitialiser ; le temps enregistré est restauré en pause. Tous les exports, dont la fusion de fichiers, sont dans Exporter en bas à droite (Ctrl+E). Masquez les définitions et révélez celle du mot courant ; la recherche suivante les masque à nouveau. Ce choix est mémorisé.
+
 L'outil de bureau de XT (XuTao) pour lire des PDF en anglais, collecter du vocabulaire et prendre des notes de recherche. Lire une page, laisser une trace.
 
 ## Installer et lancer
 
-Téléchargez XT-ReadTrace-1.13.2-Setup-x64.exe depuis [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), puis exécutez le programme d'installation. Il comprend le dictionnaire hors ligne complet, les données OCR en anglais et le runtime. Gardez l'option de raccourci sur le bureau activée. Aucune installation ou compte Python n'est requis pour l'application installée.
+Téléchargez XT-ReadTrace-1.14.0-Setup-x64.exe depuis [Releases](https://github.com/peekabooXT/XT-ReadTrace/releases), puis exécutez le programme d'installation. Il comprend le dictionnaire hors ligne complet, les données OCR en anglais et le runtime. Gardez l'option de raccourci sur le bureau activée. Aucune installation ou compte Python n'est requis pour l'application installée.
 
 Le dossier d'installation par défaut est `D:\tools\codex\XT-ReadTrace`. Ouvrez le raccourci sur le bureau nommé XT 阅迹 ou exécutez `XT阅迹.exe`. Conservez les dossiers `_internal` et `dictionary` à côté de l'exécutable.
 
@@ -35,7 +37,7 @@ Utilisez Modifier/Ajouter une signification pour enregistrer votre propre explic
 ## Exportez un PDF ou fusionnez plusieurs manuels de mots
 
 - Wordbook TXT : exportez du texte UTF-8 compatible avec le wordbook cloud de MAiMemo. Le mode chapitre conserve un mot ou une phrase complète par ligne et préserve la casse. Des chapitres de page, du texte brut et le mode de formulaire de base `//` sont également disponibles. Le traitement du formulaire de base est effectué par MAiMemo.
-- Plusieurs PDF : cliquez sur Fusionner les manuels de mots sous la liste des documents, vérifiez les fichiers et prévisualisez le résultat. Sélectionnez tout ou effacez la sélection selon vos besoins. Supprimez les doublons dans les fichiers, convertissez éventuellement en minuscules et exportez un seul manuel de mots TXT. TXT peut regrouper les entrées par fichier, par fichier et page, ou en un seul chapitre.
+- Plusieurs PDF : cliquez sur Fusionner les manuels de mots dans le menu d’export, vérifiez les fichiers et prévisualisez le résultat. Sélectionnez tout ou effacez la sélection selon vos besoins. Supprimez les doublons dans les fichiers, convertissez éventuellement en minuscules et exportez un seul manuel de mots TXT. TXT peut regrouper les entrées par fichier, par fichier et page, ou en un seul chapitre.
 - Tableau de vocabulaire imprimable : exportez un PDF A4 avec des mots ou des phrases en anglais à gauche et leurs significations à droite. Prévisualisez et modifiez les significations de cette exportation. Les significations longues se poursuivent sur les pages suivantes avec des en-têtes de colonnes répétés. Un tableau fusionné peut inclure tous les PDF vérifiés et utilise vos significations personnelles enregistrées.
 - Mots et annotations PDF : créez une copie contenant le style des mots collectés et les annotations PDF standard. Les notes textuelles restent directement visibles et imprimables. Le PDF original est conservé.
 - Lecture de PDF avec espace d'écriture : ajoutez une ou deux lignes vierges entre les lignes de texte visuel pour les notes manuscrites. Choisissez toutes les pages, la page actuelle ou une plage de pages. La sortie utilise une pagination A4 et peut inclure un style de mots collectés. Le traitement s'exécute en arrière-plan et peut être annulé.

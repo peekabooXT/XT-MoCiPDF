@@ -351,5 +351,16 @@
   "（英文释义）<br>": "(English definition)<br>",
   "按住左键拖动连续擦除批注；已收录词条在选词模式下双击取消。": "Hold the left mouse button and drag to erase annotations. Double-click collected words in Select / Read mode to remove their marks.",
   "自由画笔：按住 Ctrl 画直线，按住 Shift 画波浪线。": "Freehand pen: hold Ctrl for a straight line or Shift for a wavy line.",
-  "本篇词本 · {arg0} 个词条 · {arg1} 个标记": "Wordbook · {arg0} terms · {arg1} marks"
+  "本篇词本 · {arg0} 个词条 · {arg1} 个标记": "Wordbook · {arg0} terms · {arg1} marks",
+  "在页面上输入备注…": "Type a note on the page…",
+  "拖动这里移动备注": "Drag here to move the note",
+  "开始计时": "Start timer",
+  "暂停计时": "Pause timer",
+  "重置计时": "Reset timer",
+  "隐藏释义": "Hide meanings",
+  "释义已遮盖": "Meanings are covered",
+  "查看当前释义": "Reveal this meaning",
+  "导出…": "Export…",
+  "重置": "Reset",
+  "备注：直接在 PDF 页面输入，Ctrl+Enter 保存，Esc 取消；拖住备注可移动，双击可编辑。顶部计时器支持开始、暂停与重置，关闭后保存时长，再次启动时暂停。所有导出方式（包括多文件合并）都在右下角「导出…」中，Ctrl+E 打开菜单。词典可勾选「隐藏释义」，点击查看当前释义，换词后自动重新遮盖；隐藏偏好会保存。": "Notes: type directly on the PDF page, press Ctrl+Enter to save or Esc to cancel. Drag a saved note to move it; double-click to edit. The top timer supports start, pause and reset; elapsed time is restored paused after reopening. All exports, including multi-file merging, are in the bottom-right Export menu (Ctrl+E). Hide meanings covers dictionary content; reveal the current meaning when needed, and the next lookup covers it again. The hiding preference is saved."
 }

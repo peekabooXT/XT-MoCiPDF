@@ -350,5 +350,16 @@
   "（英文释义）<br>": "(Significato inglese) <br>",
   "按住左键拖动连续擦除批注；已收录词条在选词模式下双击取消。": "Tieni premuto il pulsante sinistro e trascina per cancellare le annotazioni. Fai doppio clic sulle parole raccolte in modalità lettura per rimuovere i segni.",
   "自由画笔：按住 Ctrl 画直线，按住 Shift 画波浪线。": "Penna libera: tieni premuto Ctrl per una linea retta o Shift per una linea ondulata.",
-  "本篇词本 · {arg0} 个词条 · {arg1} 个标记": "Vocabolario · {arg0} termini · {arg1} segni"
+  "本篇词本 · {arg0} 个词条 · {arg1} 个标记": "Vocabolario · {arg0} termini · {arg1} segni",
+  "在页面上输入备注…": "Scrivi una nota sulla pagina…",
+  "拖动这里移动备注": "Trascina qui per spostare la nota",
+  "开始计时": "Avvia timer",
+  "暂停计时": "Pausa timer",
+  "重置计时": "Azzera timer",
+  "隐藏释义": "Nascondi significati",
+  "释义已遮盖": "I significati sono coperti",
+  "查看当前释义": "Mostra questo significato",
+  "导出…": "Esporta…",
+  "重置": "Azzera",
+  "备注：直接在 PDF 页面输入，Ctrl+Enter 保存，Esc 取消；拖住备注可移动，双击可编辑。顶部计时器支持开始、暂停与重置，关闭后保存时长，再次启动时暂停。所有导出方式（包括多文件合并）都在右下角「导出…」中，Ctrl+E 打开菜单。词典可勾选「隐藏释义」，点击查看当前释义，换词后自动重新遮盖；隐藏偏好会保存。": "Scrivi le note sul PDF: Ctrl+Invio salva, Esc annulla. Trascina una nota per spostarla; fai doppio clic per modificarla. Il timer in alto offre avvio, pausa e azzeramento; alla riapertura ripristina il tempo salvato in pausa. Tutte le esportazioni, inclusa la fusione di file, sono nel menu Esporta in basso a destra (Ctrl+E). Nascondi i significati e rivela quello corrente; la ricerca successiva li copre di nuovo. La preferenza viene salvata."
 }

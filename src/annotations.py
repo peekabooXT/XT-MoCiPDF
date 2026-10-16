@@ -87,10 +87,8 @@ def note_layout(item, page_rect):
 def add_visible_note(page, item, rect=None, fontsize=None):
     if rect is None:
         rect, fontsize = note_layout(item, fitz.Rect(0, 0, page.cropbox.width, page.cropbox.height))
-    color = color_rgb(item['color'])
-    fill = tuple(.92 + component * .08 for component in color)
     annot = page.add_freetext_annot(rect, note_html(item['text']), fontsize=fontsize, richtext=True,
-        style=note_style(fontsize), fill_color=fill, border_color=color, border_width=.8)
+        style=note_style(fontsize), fill_color=None, border_width=0)
     annot.set_info(content=item['text'], title=PROJECT_NAME)
     # Regenerate after changing Contents: this removes the HTML wrapper's
     # leading whitespace and preserves all plain-text lines and embedded fonts.
@@ -102,8 +100,8 @@ def render_note(item, page_rect, scale):
     rect, fontsize = note_layout(item, page_rect)
     with fitz.open() as doc:
         page = doc.new_page(width=rect.width, height=rect.height)
-        add_visible_note(page, item, fitz.Rect(0, 0, rect.width, rect.height), fontsize)
-        return rect, page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+        annot = add_visible_note(page, item, fitz.Rect(0, 0, rect.width, rect.height), fontsize)
+        return rect, annot.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=True)
 
 
 def annotation_at(annotations, point, tolerance=5, page_rect=None):
